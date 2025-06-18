@@ -14,7 +14,7 @@ Workshop for Platform Engineering in a day
 - backstage
 - Product mindset
 
-### 10:00 - 11:00 - LAB01 setting up your environment
+### 10:00 - 11:00 - [LAB01: Setting Up Your Environment](LAB01.md)
 - k8s (kind / k3s)
 - github repo
 - argocd
