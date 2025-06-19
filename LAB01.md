@@ -193,7 +193,13 @@ For nip.io to work properly, you'll need to know your machine's IP address:
 ipconfig | findstr "IPv4"
 ```
 
-#### macOS/Linux
+#### macOS
+```bash
+# Get your IP address
+ifconfig | grep inet | grep -v 127.0.0.1 | awk '{print $2}'
+```
+
+#### Linux
 ```bash
 # Get your IP address (choose the appropriate interface)
 ip addr show | grep "inet " | grep -v 127.0.0.1
