@@ -3,7 +3,9 @@
 Welcome to LAB01! In this lab, you'll set up your local development environment for platform engineering. By the end of this lab, you'll have:
 
 - A local Kubernetes cluster running with Kind
+- NGINX Ingress Controller for external access
 - ArgoCD installed and configured
+- ArgoCD accessible via ingress using nip.io domains
 - Basic understanding of how to access these tools
 
 ## Prerequisites
@@ -91,9 +93,32 @@ Now let's create a local Kubernetes cluster using Kind.
 
 ### Create a Cluster
 
+We'll create a kind cluster with ingress support to enable external access to services.
+
 ```bash
-# Create a new cluster named "workshop"
-kind create cluster --name workshop
+# Create a kind configuration file for ingress support
+cat << EOF > kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+EOF
+
+# Create a new cluster named "workshop" with ingress support
+kind create cluster --name workshop --config kind-config.yaml
 
 # Verify the cluster is running
 kubectl cluster-info --context kind-workshop
@@ -140,6 +165,51 @@ kubectl get pods -n kube-system
 
 You should see one node in "Ready" state and several system pods running.
 
+### Install NGINX Ingress Controller
+
+Now let's install the NGINX ingress controller to handle external traffic to our services.
+
+```bash
+# Install NGINX Ingress Controller
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+
+# Wait for the ingress controller to be ready
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=90s
+
+# Verify ingress controller is running
+kubectl get pods -n ingress-nginx
+```
+
+### Get Your Machine's IP Address
+
+For nip.io to work properly, you'll need to know your machine's IP address:
+
+#### Windows
+```powershell
+# Get your IP address
+ipconfig | findstr "IPv4"
+```
+
+#### macOS
+```bash
+# Get your IP address
+ifconfig | grep inet | grep -v 127.0.0.1 | awk '{print $2}'
+```
+
+#### Linux
+```bash
+# Get your IP address (choose the appropriate interface)
+ip addr show | grep "inet " | grep -v 127.0.0.1
+
+# Or use this simpler command
+hostname -I | awk '{print $1}'
+```
+
+**Note your IP address** - you'll use it to access ArgoCD later (e.g., `192.168.1.10`).
+
 ## Part 3: Installing ArgoCD
 
 ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes.
@@ -159,7 +229,45 @@ kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -
 
 ### Access ArgoCD UI
 
-#### Option 1: Port Forwarding (Recommended for this workshop)
+You now have three options to access ArgoCD:
+
+#### Option 1: Ingress with nip.io (Recommended)
+
+First, create an ingress resource for ArgoCD:
+
+```bash
+# Create ArgoCD ingress configuration
+cat << EOF | kubectl apply -f -
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-server-ingress
+  namespace: argocd
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: argocd.YOUR_IP.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: argocd-server
+            port:
+              number: 443
+EOF
+```
+
+**Replace YOUR_IP with your actual IP address** (e.g., if your IP is 192.168.1.10, use `argocd.192.168.1.10.nip.io`).
+
+Now you can access ArgoCD at: `http://argocd.YOUR_IP.nip.io`
+
+#### Option 2: Port Forwarding (Alternative)
 ```bash
 # Forward the ArgoCD server port to your local machine
 kubectl port-forward svc/argocd-server -n argocd 8080:443
@@ -167,7 +275,7 @@ kubectl port-forward svc/argocd-server -n argocd 8080:443
 
 Now you can access ArgoCD at: `https://localhost:8080`
 
-#### Option 2: Load Balancer (Alternative)
+#### Option 3: Load Balancer (Alternative)
 ```bash
 # Patch the service to use LoadBalancer type
 kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
@@ -185,8 +293,10 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.pas
 
 ### Login to ArgoCD
 
-1. Open your browser and navigate to `https://localhost:8080`
-2. Accept the self-signed certificate warning
+1. Open your browser and navigate to:
+   - **Ingress**: `http://argocd.YOUR_IP.nip.io` (replace YOUR_IP with your actual IP)
+   - **Port forwarding**: `https://localhost:8080`
+2. If using port forwarding, accept the self-signed certificate warning
 3. Use the following credentials:
    - Username: `admin`
    - Password: (the password you retrieved from the previous step)
@@ -221,6 +331,10 @@ sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
 ### Login via CLI
 ```bash
 # Login using the CLI (use the same password from earlier)
+# For ingress access:
+argocd login argocd.YOUR_IP.nip.io --username admin --password <your-password> --insecure
+
+# For port forwarding access:
 argocd login localhost:8080 --username admin --password <your-password> --insecure
 ```
 
@@ -302,6 +416,23 @@ kubectl logs -n argocd deployment/argocd-server
 kubectl top nodes
 ```
 
+#### Ingress Not Working
+```bash
+# Check ingress controller status
+kubectl get pods -n ingress-nginx
+
+# Check ingress resource
+kubectl get ingress -n argocd
+
+# Check ingress controller logs
+kubectl logs -n ingress-nginx deployment/ingress-nginx-controller
+```
+
+#### nip.io Domain Not Resolving
+- Ensure your IP address is correct
+- Try using `curl` to test: `curl -H "Host: argocd.YOUR_IP.nip.io" http://localhost`
+- Check if ports 80/443 are available and not blocked by firewall
+
 #### Port 8080 Already in Use
 ```bash
 # Use a different port
@@ -316,14 +447,19 @@ If you need to start over:
 # Delete the Kind cluster
 kind delete cluster --name workshop
 
+# Remove the kind configuration file
+rm kind-config.yaml
+
 # This will remove everything we've created
 ```
 
 ## Next Steps
 
 Congratulations! You now have:
-- ✅ Kind installed and a local Kubernetes cluster running
+- ✅ Kind installed and a local Kubernetes cluster running with ingress support
+- ✅ NGINX Ingress Controller installed and configured
 - ✅ ArgoCD installed and accessible via UI and CLI
+- ✅ ArgoCD accessible through ingress using nip.io domains
 - ✅ A sample application deployed via ArgoCD
 
 You're ready for LAB02 where we'll explore creating basic self-service capabilities with ArgoCD projects and namespaces.
@@ -341,6 +477,11 @@ kubectl get nodes
 kubectl get pods --all-namespaces
 kubectl config get-contexts
 
+# Ingress commands
+kubectl get ingress --all-namespaces
+kubectl describe ingress <ingress-name> -n <namespace>
+kubectl get pods -n ingress-nginx
+
 # ArgoCD commands
 argocd app list
 argocd app sync <app-name>
@@ -352,3 +493,5 @@ argocd app get <app-name>
 - [Kind Documentation](https://kind.sigs.k8s.io/)
 - [ArgoCD Documentation](https://argo-cd.readthedocs.io/)
 - [Kubernetes Documentation](https://kubernetes.io/docs/)
+- [NGINX Ingress Controller](https://kubernetes.github.io/ingress-nginx/)
+- [nip.io - Wildcard DNS for localhost](https://nip.io/)
