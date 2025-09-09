@@ -20,9 +20,10 @@ Workshop for Platform Engineering in a day
 - argocd
 - sample helm chart (Back stage)
 
-### 11:00 - 12:00 - LAB02 creating a basic self service
+### 11:00 - 12:00 - [LAB02: Creating a Basic Self-Service Platform](LAB02.md)
 - create 2nd argo project for self service
-- create namespaces
+- create namespaces through GitOps
+- multi-tenant self-service workflow
 
 ### 12:00 - 13:00 - Lunch
 
