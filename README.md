@@ -34,8 +34,8 @@ Workshop for Platform Engineering in a day
 - Crossplane
 
 ### 14:00 - 15:00 - LAB03 Deploying a resource outside of kubernetes
-- using either ASO, KRO, terranetes or crossplane
-`
+- Using Azure Service Operator to deploy resources in Azure
+
 ### 15:00 - 15:15 - Coffee Break
 
 ### 15:15 - 16:30 - LAB04 Advanced Concepts
