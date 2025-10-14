@@ -35,7 +35,11 @@ Workshop for Platform Engineering in a day
 - Crossplane
 
 ### 14:00 - 15:00 - [LAB03: Deploying Azure Resources with Azure Service Operator](LAB03.md)
-- Using Azure Service Operator to deploy resources in Azure
+- Azure Service Operator (ASO) installed in your Kubernetes cluster
+- Azure credentials configured for ASO authentication
+- ArgoCD applications that deploy Azure resources via GitOps
+- Experience creating Azure Resource Groups and Storage Accounts
+- Understanding of how to manage Azure resources through Kubernetes manifests
 
 ### 15:00 - 15:15 - Coffee Break
 
