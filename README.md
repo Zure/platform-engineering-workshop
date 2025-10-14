@@ -43,9 +43,12 @@ Workshop for Platform Engineering in a day
 
 ### 15:00 - 15:15 - Coffee Break
 
-### 15:15 - 16:30 - LAB04 Advanced Concepts
+### 15:15 - 16:30 - [LAB04: Advanced Platform Concepts - Abstractions and Interfaces](LAB04.md)
 - Abstract Azure resources away in App Concepts
 - Interfaces for your Internal Developer Platform
+- Custom Resource Definitions and platform abstractions
+- Golden Path patterns for developer self-service
+- Platform interface design and evolution strategies
 
 ### 16:30 - 17:00 - Wrap up / How to convince your boss / How to continue at home
 - Adoption
