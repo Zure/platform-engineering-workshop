@@ -13,6 +13,7 @@ Workshop for Platform Engineering in a day
 - argoCD
 - backstage
 - Product mindset
+- Building an Internal Developer Platform
 
 ### 10:00 - 11:00 - [LAB01: Setting Up Your Environment](LAB01.md)
 - k8s (kind / k3s)
@@ -39,8 +40,9 @@ Workshop for Platform Engineering in a day
 ### 15:00 - 15:15 - Coffee Break
 
 ### 15:15 - 16:30 - LAB04 Advanced Concepts
-- full apps
-- AI the new UI?
+- Abstract Azure resources away in App Concepts
+- Interfaces for your Internal Developer Platform
 
 ### 16:30 - 17:00 - Wrap up / How to convince your boss / How to continue at home
 - Adoption
+- Q & A
