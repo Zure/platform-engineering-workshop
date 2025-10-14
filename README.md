@@ -33,7 +33,7 @@ Workshop for Platform Engineering in a day
 - Terranetes
 - Crossplane
 
-### 14:00 - 15:00 - LAB03 Deploying a resource outside of kubernetes
+### 14:00 - 15:00 - [LAB03: Deploying Azure Resources with Azure Service Operator](LAB03.md)
 - Using Azure Service Operator to deploy resources in Azure
 
 ### 15:00 - 15:15 - Coffee Break
