@@ -6,7 +6,8 @@ Workshop for Platform Engineering in a day
 
 ### 08:30 - 09:00 - Walk in
 
-### 09:00 - 10:00 - Introduction into Platform engineering
+### 09:00 - 09:45 - Introduction into Platform engineering
+- Setting expectations
 - what is platform engineering
 - GitOps
 - Kubernetes
@@ -15,11 +16,12 @@ Workshop for Platform Engineering in a day
 - Product mindset
 - Building an Internal Developer Platform
 
-### 10:00 - 11:00 - [LAB01: Setting Up Your Environment](LAB01.md)
+### 09:45 - 10:45 - [LAB01: Setting Up Your Environment](LAB01.md)
 - k8s (kind / k3s)
 - github repo
 - argocd
-- sample helm chart (Back stage)
+
+### 10:45 - 11:00 - Coffee Break
 
 ### 11:00 - 12:00 - [LAB02: Creating a Basic Self-Service Platform](LAB02.md)
 - create 2nd argo project for self service
