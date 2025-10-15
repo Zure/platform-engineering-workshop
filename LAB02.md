@@ -36,16 +36,23 @@ First, let's create a repository structure for self-service requests.
 # Create a local directory for our self-service repo
 mkdir -p /tmp/platform-self-service
 cd /tmp/platform-self-service
+```
 
+```bash
 # Initialize git repository
 git init
+```
 
+```bash
 # Create the basic structure
 mkdir -p {namespaces,projects,applications}
 mkdir -p namespaces/{dev,staging,prod}
+```
 
+```bash
 # Create README
 cat << 'EOF' > README.md
+```
 # Platform Self-Service
 
 This repository contains self-service resources for development teams.
@@ -66,8 +73,7 @@ This repository contains self-service resources for development teams.
 3. Submit a Pull Request
 4. Once approved and merged, ArgoCD will automatically create the resources
 
-EOF
-
+```bash
 # Create .gitignore
 cat << 'EOF' > .gitignore
 .DS_Store
@@ -83,6 +89,7 @@ Let's create templates and examples for namespace requests:
 ```bash
 # Create a namespace template
 cat << 'EOF' > namespaces/README.md
+
 # Namespace Requests
 
 ## How to Request a Namespace
@@ -140,6 +147,7 @@ spec:
     type: Container
 ```
 EOF
+
 
 # Create an example namespace for the "frontend" team
 cat << 'EOF' > namespaces/dev/frontend-dev-namespace.yaml
