@@ -145,10 +145,10 @@ spec:
       cpu: 100m
       memory: 128Mi
     type: Container
-```
 EOF
+```
 
-
+```bash
 # Create an example namespace for the "frontend" team
 cat << 'EOF' > namespaces/dev/frontend-dev-namespace.yaml
 apiVersion: v1
@@ -194,7 +194,9 @@ spec:
       memory: 128Mi
     type: Container
 EOF
+```
 
+```bash
 # Create another example for the "backend" team
 cat << 'EOF' > namespaces/dev/backend-dev-namespace.yaml
 apiVersion: v1
