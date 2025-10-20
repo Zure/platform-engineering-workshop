@@ -443,6 +443,27 @@ kubectl port-forward svc/argocd-server -n argocd 8081:443
 
 If you need to start over:
 
+#### Remove the Guestbook Application
+
+If you no longer need the guestbook sample application:
+
+```bash
+# Delete the guestbook application from ArgoCD
+argocd app delete guestbook
+
+# Confirm deletion when prompted, or use --yes to skip confirmation
+argocd app delete guestbook --yes
+
+# Verify the application is removed
+argocd app list
+```
+
+This will remove the ArgoCD application and all its deployed Kubernetes resources.
+
+#### Remove the Entire Cluster
+
+To completely remove the cluster and start fresh:
+
 ```bash
 # Delete the Kind cluster
 kind delete cluster --name workshop
@@ -486,6 +507,7 @@ kubectl get pods -n ingress-nginx
 argocd app list
 argocd app sync <app-name>
 argocd app get <app-name>
+argocd app delete <app-name>
 ```
 
 ## Resources
