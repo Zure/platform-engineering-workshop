@@ -258,6 +258,46 @@ git commit -m "Initial self-service repository structure
 - Add documentation for teams"
 ```
 
+### ✅ Verification Steps - Part 1
+
+Before moving forward, let's verify your repository structure is set up correctly:
+
+```bash
+# Verify the directory structure was created
+tree /tmp/platform-self-service
+
+# Verify git repository is initialized
+cd /tmp/platform-self-service
+git status
+git log --oneline
+
+# Check that all expected files exist
+ls -la namespaces/dev/
+ls -la namespaces/staging/
+ls -la namespaces/prod/
+cat README.md
+```
+
+**Expected Output:**
+- Directory structure should show `namespaces`, `projects`, and `applications` folders
+- Git log should show your initial commit
+- `namespaces/dev/` should contain `frontend-dev-namespace.yaml` and `backend-dev-namespace.yaml`
+- README.md should contain documentation about the repository structure
+
+### 🤔 Reflection Questions - Part 1
+
+Take a moment to think about what you've created:
+
+1. **Repository Structure**: Why do you think we separated namespaces into `dev`, `staging`, and `prod` directories? What advantage does this provide?
+
+2. **Resource Quotas**: Look at the ResourceQuota definitions in the namespace files. Why is it important to set both `requests` and `limits` for CPU and memory?
+
+3. **LimitRange vs ResourceQuota**: What's the difference between `LimitRange` and `ResourceQuota`? Why do we need both in our namespace definitions?
+
+4. **Self-Service Workflow**: How does this repository structure enable a self-service workflow? What steps would a development team take to request a new namespace?
+
+5. **GitOps Benefits**: What are the benefits of managing infrastructure resources (like namespaces) through Git compared to creating them manually with `kubectl`?
+
 ## Part 2: Setting Up ArgoCD Projects for Multi-Tenancy
 
 ArgoCD Projects provide a way to group applications and provide team-level access control.
@@ -385,6 +425,43 @@ git commit -m "Add ArgoCD project definitions for multi-tenancy
 - RBAC roles and policies defined"
 ```
 
+### ✅ Verification Steps - Part 2
+
+Verify your ArgoCD project files are created correctly:
+
+```bash
+# Check the project files exist
+ls -la projects/
+
+# View the content of the projects
+cat projects/self-service-project.yaml
+cat projects/dev-teams-project.yaml
+
+# Verify the commit was created
+git log --oneline -2
+```
+
+**Expected Output:**
+- Two project files: `self-service-project.yaml` and `dev-teams-project.yaml`
+- Each file should contain an `AppProject` resource with `metadata`, `spec`, and `roles`
+- Git log should show the latest commit about ArgoCD projects
+
+### 🤔 Reflection Questions - Part 2
+
+Consider these questions about ArgoCD projects and multi-tenancy:
+
+1. **Multi-Tenancy**: How do ArgoCD Projects help achieve multi-tenancy in a Kubernetes cluster? What aspects of isolation do they provide?
+
+2. **Source Repositories**: In the `self-service-project.yaml`, we defined specific source repositories. Why would we restrict which repositories a project can use?
+
+3. **Destination Namespaces**: Notice the namespace patterns like `frontend-*` and `backend-*` in the destinations. Why use wildcards instead of listing specific namespaces?
+
+4. **RBAC Roles**: What's the difference between the `developer` and `admin` roles defined in the self-service project? When would each role be appropriate?
+
+5. **Resource Whitelists**: We defined `clusterResourceWhitelist` and `namespaceResourceWhitelist`. What happens if a team tries to deploy a resource type that's not in these lists?
+
+6. **Security Implications**: How do these project definitions help prevent teams from accidentally (or intentionally) deploying resources they shouldn't?
+
 ## Part 3: Creating ArgoCD Applications for Self-Service
 
 ### Create the Self-Service Application
@@ -438,6 +515,39 @@ git commit -m "Add self-service namespaces application
 - Automated sync with prune and self-heal
 - Creates namespaces automatically"
 ```
+
+### ✅ Verification Steps - Part 3
+
+Verify the application definition is correct:
+
+```bash
+# Check the application file
+ls -la applications/
+cat applications/self-service-namespaces.yaml
+
+# Verify all commits so far
+git log --oneline
+```
+
+**Expected Output:**
+- Application file `self-service-namespaces.yaml` should exist
+- It should reference `project: self-service`
+- The source path should point to `namespaces`
+- Git history should show 3 commits
+
+### 🤔 Reflection Questions - Part 3
+
+Think about ArgoCD applications and automation:
+
+1. **Automated Sync**: We enabled `automated` sync with `prune: true` and `selfHeal: true`. What do each of these options do? What are the risks and benefits?
+
+2. **Source Path**: The application watches the `namespaces` path. What happens when someone adds a new YAML file to `namespaces/dev/`?
+
+3. **File vs Git Repository**: We're using `file:///tmp/platform-self-service` for this lab. How would behavior differ if we used a real GitHub repository?
+
+4. **Sync Options**: What does `CreateNamespace=true` do? Why might we want to use `PrunePropagationPolicy=foreground`?
+
+5. **Application vs Project**: What's the relationship between an ArgoCD Application and an ArgoCD Project? Why do we need both?
 
 ## Part 4: Applying the Configuration to ArgoCD
 
@@ -496,6 +606,57 @@ kubectl get limitranges --all-namespaces
 kubectl describe namespace frontend-dev
 kubectl describe namespace backend-dev
 ```
+
+### ✅ Verification Steps - Part 4
+
+Now verify that everything was applied correctly to your cluster:
+
+```bash
+# Verify ArgoCD projects were created
+argocd proj list
+
+# Get detailed information about the projects
+argocd proj get self-service
+argocd proj get dev-teams
+
+# Check the projects in Kubernetes
+kubectl get appprojects -n argocd
+
+# Verify namespaces were created
+kubectl get namespaces | grep -E "(frontend|backend)"
+
+# Check ResourceQuotas are in place
+kubectl get resourcequota -n frontend-dev
+kubectl get resourcequota -n backend-dev
+
+# Verify LimitRanges are applied
+kubectl get limitrange -n frontend-dev
+kubectl get limitrange -n backend-dev
+
+# Inspect the namespace details
+kubectl describe namespace frontend-dev
+kubectl get namespace frontend-dev -o yaml
+```
+
+**Expected Output:**
+- `argocd proj list` should show both `self-service` and `dev-teams` projects
+- `kubectl get namespaces` should show `frontend-dev` and `backend-dev`
+- Each namespace should have a ResourceQuota and LimitRange
+- Namespace labels should include `team`, `environment`, and `managed-by`
+
+### 🤔 Reflection Questions - Part 4
+
+Consider what you've deployed:
+
+1. **Project Visibility**: When you run `argocd proj get self-service`, what information is shown? What are the key restrictions this project enforces?
+
+2. **Resource Limits**: Look at the output of `kubectl describe resourcequota -n frontend-dev`. How much of the quota is currently used vs available?
+
+3. **Default Limits**: When you inspect the LimitRange, you see `default` and `defaultRequest` values. When do these defaults get applied to pods?
+
+4. **Namespace Metadata**: Why did we add labels like `team`, `environment`, and `managed-by` to the namespaces? How could these be useful?
+
+5. **Validation**: If you try to create a pod in `frontend-dev` without specifying resource requests/limits, what would happen? Why?
 
 ## Part 5: Demonstrating the Self-Service Workflow
 
@@ -614,6 +775,52 @@ kubectl describe resourcequota frontend-dev-quota -n frontend-dev
 kubectl delete -f /tmp/test-deployment.yaml
 ```
 
+### ✅ Verification Steps - Part 5
+
+Verify the new namespace and test deployment:
+
+```bash
+# Verify the mobile-dev namespace was created
+kubectl get namespace mobile-dev
+kubectl describe namespace mobile-dev
+
+# Check all our team namespaces
+kubectl get namespaces | grep -E "(frontend|backend|mobile)"
+
+# Verify the quota for mobile-dev
+kubectl get resourcequota -n mobile-dev
+kubectl describe resourcequota mobile-dev-quota -n mobile-dev
+
+# Check that the test deployment was created and then deleted
+kubectl get deployments -n frontend-dev
+kubectl get pods -n frontend-dev
+
+# Review the resource quota usage after cleanup
+kubectl describe resourcequota frontend-dev-quota -n frontend-dev
+```
+
+**Expected Output:**
+- `mobile-dev` namespace should exist with appropriate labels
+- Resource quota should show limits: 1-2 CPU, 2-4Gi memory
+- After cleanup, no deployments should exist in `frontend-dev`
+- Resource quota should show 0 usage after test deployment is deleted
+
+### 🤔 Reflection Questions - Part 5
+
+Reflect on the self-service workflow:
+
+1. **Team Request Simulation**: Walk through the steps a real team would take to request a namespace. What would be different in a production environment with GitHub?
+
+2. **Resource Allocation**: The mobile team requested fewer resources than the backend team. How does this flexible quota system benefit the organization?
+
+3. **Quota Enforcement**: When you ran `kubectl describe resourcequota`, what did the output tell you about current usage? What happens when a team tries to exceed their quota?
+
+4. **Testing Impact**: When you deployed the test application, how much of the frontend-dev quota did it consume? How did you determine this?
+
+5. **GitOps Workflow**: In a real scenario, the mobile team would submit a Pull Request. What validations would you want to run before approving such a PR?
+
+6. **Prune Behavior**: If you deleted the `mobile-dev-namespace.yaml` file and committed it, what would happen in ArgoCD? (With automated sync and prune enabled)
+
 ## Part 6: Setting Up GitHub Integration (Optional)
 
 For a complete self-service setup, you would integrate with GitHub:
@@ -729,6 +936,43 @@ git commit -m "Add application deployment templates
 - Follows GitOps best practices"
 ```
 
+### ✅ Verification Steps - Part 7
+
+Verify the templates are in place:
+
+```bash
+# Check templates directory
+ls -la applications/templates/
+
+# View the template files
+cat applications/templates/web-app-template.yaml
+cat applications/templates/README.md
+
+# Check git history
+git log --oneline
+```
+
+**Expected Output:**
+- Templates directory should contain `web-app-template.yaml` and `README.md`
+- Template should have placeholders like `TEAM_NAME`, `APP_NAME`, `ENVIRONMENT`
+- Git log should show the template commit
+
+### 🤔 Reflection Questions - Part 7
+
+Think about application templates and advanced features:
+
+1. **Template Placeholders**: Why use placeholders like `TEAM_NAME` and `APP_NAME` instead of actual values? How would teams customize these templates?
+
+2. **Project Assignment**: The template assigns the application to the `dev-teams` project. Why not the `self-service` project?
+
+3. **Namespace Creation**: Notice `CreateNamespace=false` in the template. Why is this set to false when we had it as true in the self-service application?
+
+4. **Repository Requirements**: The template assumes applications have a `k8s/` directory. What should teams put in this directory?
+
+5. **Automation vs Control**: We've enabled automated sync and self-heal for the application template. In what scenarios might you want to disable automation?
+
+6. **Scaling the Platform**: How would you handle 50 teams each with 5 applications? Would creating 250 individual Application manifests be manageable? What alternatives exist?
+
 ## Troubleshooting
 
 ### Common Issues
@@ -816,6 +1060,90 @@ EOF
 git add monitoring/
 git commit -m "Add basic monitoring configuration for self-service namespaces"
 ```
+
+### ✅ Verification Steps - Part 8
+
+Verify monitoring configuration:
+
+```bash
+# Check monitoring files
+ls -la monitoring/
+cat monitoring/namespace-monitoring.yaml
+
+# Apply the monitoring config
+kubectl apply -f monitoring/namespace-monitoring.yaml
+
+# Verify the ConfigMap was created
+kubectl get configmap -n argocd | grep namespace-monitoring
+kubectl describe configmap namespace-monitoring-config -n argocd
+
+# Check the git log
+git log --oneline --all
+```
+
+**Expected Output:**
+- Monitoring directory with `namespace-monitoring.yaml`
+- ConfigMap should be created in the argocd namespace
+- Git log should show all commits made during the lab
+
+### 🤔 Reflection Questions - Part 8
+
+Consider monitoring and observability:
+
+1. **Monitoring Scope**: The configuration monitors namespaces matching `(frontend|backend|mobile)-.*`. How does this regex pattern work? What namespaces would it match?
+
+2. **Observability**: Why is monitoring important for a self-service platform? What metrics would be most valuable to track?
+
+3. **ConfigMap vs Deployment**: We created monitoring config as a ConfigMap. How would this integrate with an actual Prometheus deployment?
+
+4. **Alerting**: What alerts would you want to set up for this self-service platform? When should the platform team be notified?
+
+5. **Cost Tracking**: How could you use namespace labels and monitoring to track costs per team?
+
+## Final Verification - Complete Lab Check
+
+Before moving to LAB03, verify your complete setup:
+
+```bash
+# Check all ArgoCD projects
+argocd proj list
+
+# Verify all namespaces
+kubectl get namespaces | grep -E "(frontend|backend|mobile)"
+
+# Review all resource quotas
+kubectl get resourcequota --all-namespaces
+
+# Check all commits in your self-service repo
+cd /tmp/platform-self-service
+git log --oneline --graph --all
+
+# Verify the complete directory structure
+tree /tmp/platform-self-service
+```
+
+### ✅ Final Checklist
+
+Ensure you can answer "yes" to all of these:
+
+- [ ] I can explain what ArgoCD Projects are and how they enable multi-tenancy
+- [ ] I understand the difference between ResourceQuota and LimitRange
+- [ ] I know how to request a new namespace through the self-service workflow
+- [ ] I can describe what happens when code is merged to the self-service repository
+- [ ] I understand how automated sync, prune, and self-heal work in ArgoCD
+- [ ] I can explain the RBAC roles defined in the ArgoCD projects
+- [ ] I know how to verify if a namespace is within its resource quota limits
+- [ ] I understand why we use Git for infrastructure as code
+
+### 🎯 Challenge Exercises (Optional)
+
+If you have time, try these challenges:
+
+1. **Create a Production Namespace**: Following the pattern, create a `frontend-prod` namespace with stricter resource limits than dev
+2. **Add Network Policy**: Research and add a NetworkPolicy to isolate the frontend-dev namespace
+3. **Custom Quota**: Create a namespace for a "data-science" team that needs more CPU but less memory
+4. **Validation Webhook**: Research how you could add validation to ensure all namespace requests follow the template correctly
+5. **Cost Labels**: Add additional labels for cost center and project code to enable chargeback
 
 ## Next Steps
 
