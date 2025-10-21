@@ -141,7 +141,7 @@ helm install aso2 aso2/azure-service-operator \
   --set azureClientID="YOUR_CLIENT_ID" \
   --set azureClientSecret="YOUR_CLIENT_SECRET"
 
-# Replace YOUR_TENANT_ID, YOUR_CLIENT_ID, and YOUR_CLIENT_SECRET 
+# Replace YOUR_TENANT_ID, YOUR_CLIENT_ID, and YOUR_CLIENT_SECRET
 # with the values from the service principal creation step
 ```
 
@@ -190,7 +190,7 @@ This repository contains Azure resource definitions managed through Azure Servic
 ## Structure
 
 - `resource-groups/` - Azure Resource Group definitions
-- `storage-accounts/` - Azure Storage Account definitions  
+- `storage-accounts/` - Azure Storage Account definitions
 - `applications/` - ArgoCD Application manifests
 
 ## Workflow
@@ -295,18 +295,18 @@ metadata:
   namespace: argocd
 spec:
   description: "Project for managing Azure resources via ASO"
-  
+
   # Source repositories
   sourceRepos:
   - '*'
-  
+
   # Destination clusters and namespaces
   destinations:
   - namespace: default
     server: https://kubernetes.default.svc
   - namespace: azureserviceoperator-system
     server: https://kubernetes.default.svc
-  
+
   # Allowed Kubernetes resources
   clusterResourceWhitelist:
   - group: 'resources.azure.com'
@@ -317,13 +317,13 @@ spec:
     kind: '*'
   - group: 'network.azure.com'
     kind: '*'
-    
+
   namespaceResourceWhitelist:
   - group: 'resources.azure.com'
     kind: '*'
   - group: 'storage.azure.com'
     kind: '*'
-    
+
   # RBAC Policies
   roles:
   - name: azure-admin
@@ -332,7 +332,7 @@ spec:
     - p, proj:azure-resources:azure-admin, applications, *, azure-resources/*, allow
     groups:
     - argocd:admin
-    
+
   - name: azure-developer
     description: "Read access to Azure resources"
     policies:
@@ -358,23 +358,23 @@ metadata:
   namespace: argocd
 spec:
   project: azure-resources
-  
+
   source:
     repoURL: 'file:///tmp/azure-resources'  # In production, use your Git repository
     targetRevision: HEAD
     path: .
-    
+
   destination:
     server: https://kubernetes.default.svc
     namespace: default
-    
+
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
     - CreateNamespace=false
-    
+
   # Ignore differences in status fields
   ignoreDifferences:
   - group: resources.azure.com
@@ -382,12 +382,14 @@ spec:
     jsonPointers:
     - /status
   - group: storage.azure.com
-    kind: StorageAccount  
+    kind: StorageAccount
     jsonPointers:
     - /status
 EOF
+```
 
-# Commit our changes
+### Commit our changes
+```bash
 git add .
 git commit -m "Initial Azure resources configuration
 
@@ -458,8 +460,9 @@ spec:
     environment: dev
     managed-by: azure-service-operator
 EOF
-
-# Create production environment resources
+```
+### Create production environment resources
+```bash
 cat << 'EOF' > environments/prod/resource-group.yaml
 apiVersion: resources.azure.com/v1api20200601
 kind: ResourceGroup
@@ -509,23 +512,23 @@ metadata:
   namespace: argocd
 spec:
   project: azure-resources
-  
+
   source:
     repoURL: 'file:///tmp/azure-resources'
     targetRevision: HEAD
     path: environments/dev
-    
+
   destination:
     server: https://kubernetes.default.svc
     namespace: default
-    
+
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
 EOF
 
-# Create prod environment application  
+# Create prod environment application
 cat << 'EOF' > applications/azure-resources-prod.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -534,23 +537,24 @@ metadata:
   namespace: argocd
 spec:
   project: azure-resources
-  
+
   source:
     repoURL: 'file:///tmp/azure-resources'
     targetRevision: HEAD
     path: environments/prod
-    
+
   destination:
     server: https://kubernetes.default.svc
     namespace: default
-    
+
   syncPolicy:
     # Manual sync for production
     syncOptions:
     - CreateNamespace=false
 EOF
-
-# Commit the new structure
+```
+### Commit the new structure
+```bash
 git add environments/ applications/
 git commit -m "Add multi-environment Azure resource structure
 
