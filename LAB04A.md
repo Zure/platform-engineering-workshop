@@ -43,12 +43,13 @@ Backstage is an open platform for building developer portals. It helps organizat
 ### Lab Flow
 
 In this lab, we'll:
-1. Install Backstage dependencies (PostgreSQL database)
-2. Deploy Backstage using Helm
-3. Configure Backstage with Kubernetes and ArgoCD plugins
-4. Access Backstage through ingress
-5. Create software templates for requesting resources
-6. Test the complete self-service workflow
+1. Understand Backstage architecture and components
+2. Prepare the environment for Backstage deployment
+3. Deploy Backstage using Helm with built-in storage
+4. Configure Backstage with Kubernetes and ArgoCD plugins
+5. Access Backstage through ingress
+6. Create software templates for requesting resources
+7. Test the complete self-service workflow
 
 This lab focuses on practical implementation while understanding the value Backstage brings to platform engineering.
 
@@ -72,8 +73,8 @@ Before we start, let's understand what we're deploying:
         ┌──────────────┼──────────────┐
         ▼              ▼              ▼
   ┌──────────┐  ┌──────────┐  ┌──────────────┐
-  │PostgreSQL│  │Kubernetes│  │  GitHub API  │
-  │ Database │  │   API    │  │   (optional) │
+  │  SQLite  │  │Kubernetes│  │  GitHub API  │
+  │ Storage  │  │   API    │  │   (optional) │
   └──────────┘  └──────────┘  └──────────────┘
 ```
 
@@ -125,83 +126,57 @@ Before proceeding, think about:
 
 5. **Adoption**: Introducing a new tool requires developer adoption. What features would make developers want to use Backstage over existing tools?
 
-## Part 2: Installing Backstage Dependencies
+## Part 2: Preparing for Backstage Deployment
 
-### Install PostgreSQL Database
+### Create Namespace
 
-Backstage requires a PostgreSQL database to store catalog information and metadata.
+First, let's create a dedicated namespace for Backstage:
 
 ```bash
-# Add Bitnami Helm repository
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm repo update
-
 # Create namespace for Backstage
 kubectl create namespace backstage
 
-# Install PostgreSQL
-helm install backstage-postgres bitnami/postgresql \
-  --namespace backstage \
-  --set auth.username=backstage \
-  --set auth.password=backstage123 \
-  --set auth.database=backstage \
-  --set primary.persistence.size=1Gi
-
-# Wait for PostgreSQL to be ready
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgresql -n backstage --timeout=300s
+# Verify namespace was created
+kubectl get namespace backstage
 ```
 
-### Verify PostgreSQL Installation
+### Understanding Backstage Storage
 
-```bash
-# Check PostgreSQL pod is running
-kubectl get pods -n backstage
+Backstage needs persistent storage for its catalog data. The official Backstage Helm chart includes built-in support for:
+- **SQLite** (default, suitable for development/workshop environments)
+- **PostgreSQL** (recommended for production, can be configured externally)
 
-# Test database connectivity
-kubectl run postgres-client --rm -it --restart=Never \
-  --namespace backstage \
-  --image bitnami/postgresql:latest \
-  --env PGPASSWORD=backstage123 \
-  --command -- psql -h backstage-postgres-postgresql -U backstage -d backstage -c '\l'
-```
+For this workshop, we'll use the default SQLite storage which is included in the Backstage Helm chart. This simplifies our setup while still demonstrating all key Backstage concepts.
 
 ### ✅ Verification Steps - Part 2
 
-Verify PostgreSQL is ready:
+Verify the namespace is ready:
 
 ```bash
-# Check pod status
-kubectl get pods -n backstage -l app.kubernetes.io/name=postgresql
+# Check namespace exists
+kubectl get namespace backstage
 
-# Verify service is created
-kubectl get svc -n backstage -l app.kubernetes.io/name=postgresql
-
-# Check persistent volume claim
-kubectl get pvc -n backstage
-
-# View PostgreSQL logs to ensure it started correctly
-kubectl logs -n backstage -l app.kubernetes.io/name=postgresql --tail=50
+# Verify you can create resources in the namespace
+kubectl auth can-i create pods --namespace backstage
 ```
 
 **Expected Output:**
-- PostgreSQL pod showing 1/1 Ready
-- Service `backstage-postgres-postgresql` created
-- PVC bound to a persistent volume
-- Logs showing database is ready to accept connections
+- Backstage namespace showing Active status
+- Permission check returning "yes"
 
 ### 🤔 Reflection Questions - Part 2
 
-Consider the infrastructure choices:
+Consider the deployment choices:
 
-1. **Database Choice**: Why does Backstage require a database? What information is stored there versus in Git?
+1. **Storage Options**: We're using SQLite for this workshop. What are the trade-offs between SQLite and PostgreSQL for Backstage?
 
-2. **Persistence**: We created a PersistentVolumeClaim for PostgreSQL. What happens to the Backstage catalog if the database pod restarts without persistence?
+2. **Persistence**: Even with SQLite, Backstage will need persistent storage. How does Kubernetes handle this with PersistentVolumes?
 
-3. **Security**: We used a simple password for this workshop. In production, how should database credentials be managed?
+3. **Production Considerations**: What would you change about this setup for a production environment?
 
-4. **High Availability**: This PostgreSQL setup is single-instance. What would be required for a production-ready, highly available database?
+4. **Scalability**: SQLite is single-file based. How does this impact Backstage's ability to scale horizontally?
 
-5. **Backup Strategy**: How would you implement backups for the Backstage database in a production environment?
+5. **Backup Strategy**: How would you implement backups for Backstage data in a workshop environment vs production?
 
 ## Part 3: Deploying Backstage with Helm
 
@@ -216,13 +191,36 @@ helm repo update
 helm search repo backstage
 ```
 
+### Determine Your IP Address
+
+Before configuring Backstage, you need to know your machine's IP address for the nip.io domain:
+
+```bash
+# On macOS/Linux - find your IP
+ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1
+
+# Or use this simpler command
+hostname -I | awk '{print $1}'
+
+# On Windows (PowerShell)
+# (Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.InterfaceAlias -notlike "*Loopback*"}).IPAddress
+
+# Alternative: If you're on a local machine, you might use
+ip addr show | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | cut -d/ -f1 | head -1
+```
+
+**Note your IP address** - you'll use it as `YOUR_IP` in the following commands. For example, if your IP is `192.168.1.100`, you'll use `backstage.192.168.1.100.nip.io`.
+
 ### Create Backstage Configuration
 
 Let's create a custom values file for our Backstage deployment:
 
 ```bash
+# Set your IP address (replace with your actual IP)
+export YOUR_IP="192.168.1.100"  # Replace with your actual IP from the command above
+
 # Create values file for Backstage
-cat << 'EOF' > /tmp/backstage-values.yaml
+cat << EOF > /tmp/backstage-values.yaml
 backstage:
   # Image configuration
   image:
@@ -235,24 +233,19 @@ backstage:
   appConfig:
     app:
       title: Platform Engineering Workshop
-      baseUrl: http://backstage.127.0.0.1.nip.io
+      baseUrl: http://backstage.${YOUR_IP}.nip.io
     
     backend:
-      baseUrl: http://backstage.127.0.0.1.nip.io
+      baseUrl: http://backstage.${YOUR_IP}.nip.io
       listen:
         port: 7007
       cors:
-        origin: http://backstage.127.0.0.1.nip.io
+        origin: http://backstage.${YOUR_IP}.nip.io
         methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
         credentials: true
       database:
-        client: pg
-        connection:
-          host: backstage-postgres-postgresql
-          port: 5432
-          user: backstage
-          password: backstage123
-          database: backstage
+        client: better-sqlite3
+        connection: ':memory:'
     
     catalog:
       import:
@@ -295,7 +288,7 @@ ingress:
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
-  host: backstage.127.0.0.1.nip.io
+  host: backstage.${YOUR_IP}.nip.io
   tls:
     enabled: false
 
@@ -310,12 +303,10 @@ service:
 serviceAccount:
   create: true
   automountServiceAccountToken: true
-
-# PostgreSQL (using external instance we installed earlier)
-postgresql:
-  enabled: false
 EOF
 ```
+
+**Important**: Make sure to replace `YOUR_IP` with your actual IP address throughout the configuration. The examples use `192.168.1.100` - substitute your real IP.
 
 ### Install Backstage
 
@@ -346,8 +337,10 @@ kubectl describe pod -n backstage -l app.kubernetes.io/name=backstage
 kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=100
 
 # Common issues:
-# 1. Database connection failures - verify PostgreSQL is running
-# 2. Memory limits - Backstage needs at least 512Mi RAM
+# 1. Memory limits - Backstage needs at least 512Mi RAM
+# 2. Image pull issues - check image registry and tag
+# 3. Storage issues - verify PersistentVolume can be created
+```
 # 3. Image pull issues - check image registry and tag
 ```
 
@@ -378,7 +371,7 @@ kubectl run curl-test --rm -it --restart=Never \
 **Expected Output:**
 - Backstage pod showing 1/1 Ready
 - Service exposing port 7007
-- Ingress configured for backstage.127.0.0.1.nip.io
+- Ingress configured for backstage.YOUR_IP.nip.io (e.g., backstage.192.168.1.100.nip.io)
 - API responding with JSON catalog data
 
 ### 🤔 Reflection Questions - Part 3
@@ -405,14 +398,14 @@ Now let's access Backstage through our NGINX ingress:
 # Verify ingress is working
 kubectl get ingress -n backstage
 
-# Get the ingress URL
-echo "Backstage URL: http://backstage.127.0.0.1.nip.io"
+# Get the ingress URL (replace YOUR_IP with your actual IP)
+echo "Backstage URL: http://backstage.YOUR_IP.nip.io"
 
-# Test connectivity
-curl -I http://backstage.127.0.0.1.nip.io
+# Test connectivity (replace YOUR_IP with your actual IP)
+curl -I http://backstage.YOUR_IP.nip.io
 
 # Open in browser (if running on your local machine)
-# Visit: http://backstage.127.0.0.1.nip.io
+# Visit: http://backstage.YOUR_IP.nip.io (replace YOUR_IP with your actual IP)
 ```
 
 ### First-Time Setup
@@ -439,11 +432,11 @@ For this workshop, we'll use guest authentication:
 Verify you can access Backstage:
 
 ```bash
-# Test the home page loads
-curl -s http://backstage.127.0.0.1.nip.io | grep -i "backstage" || echo "Backstage not responding"
+# Test the home page loads (replace YOUR_IP with your actual IP)
+curl -s http://backstage.YOUR_IP.nip.io | grep -i "backstage" || echo "Backstage not responding"
 
-# Test the API
-curl -s http://backstage.127.0.0.1.nip.io/api/catalog/entities | jq '.[] | .metadata.name' | head -5
+# Test the API (replace YOUR_IP with your actual IP)
+curl -s http://backstage.YOUR_IP.nip.io/api/catalog/entities | jq '.[] | .metadata.name' | head -5
 
 # Check for any errors in logs
 kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=50 | grep -i error
@@ -615,7 +608,7 @@ kubectl get pods -n backstage -l app.kubernetes.io/name=backstage
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=backstage -n backstage --timeout=300s
 
 # Access Backstage and check catalog
-# Visit: http://backstage.127.0.0.1.nip.io/catalog
+# Visit: http://backstage.YOUR_IP.nip.io/catalog (replace YOUR_IP with your actual IP)
 ```
 
 **Expected Output:**
@@ -644,12 +637,14 @@ Think about the integration:
 Let's add ArgoCD visibility to our Backstage instance:
 
 ```bash
-# Create ArgoCD token for Backstage
+# Set your IP address (replace with your actual IP)
+export YOUR_IP="192.168.1.100"  # Replace with your actual IP
+
 # First, get the ArgoCD admin password
 ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
 
-# Login to ArgoCD CLI
-argocd login argocd.127.0.0.1.nip.io --username admin --password $ARGOCD_PASSWORD --insecure
+# Login to ArgoCD CLI (replace YOUR_IP with your actual IP)
+argocd login argocd.${YOUR_IP}.nip.io --username admin --password $ARGOCD_PASSWORD --insecure
 
 # Create API token for Backstage
 ARGOCD_TOKEN=$(argocd account generate-token --account admin)
@@ -668,6 +663,9 @@ echo "ArgoCD token created for Backstage"
 Update Backstage configuration to include ArgoCD:
 
 ```bash
+# Set your IP address if not already set
+export YOUR_IP="192.168.1.100"  # Replace with your actual IP
+
 # Create updated values file with ArgoCD config
 cat << EOF > /tmp/backstage-values-argocd.yaml
 backstage:
@@ -687,24 +685,19 @@ backstage:
   appConfig:
     app:
       title: Platform Engineering Workshop
-      baseUrl: http://backstage.127.0.0.1.nip.io
+      baseUrl: http://backstage.${YOUR_IP}.nip.io
     
     backend:
-      baseUrl: http://backstage.127.0.0.1.nip.io
+      baseUrl: http://backstage.${YOUR_IP}.nip.io
       listen:
         port: 7007
       cors:
-        origin: http://backstage.127.0.0.1.nip.io
+        origin: http://backstage.${YOUR_IP}.nip.io
         methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
         credentials: true
       database:
-        client: pg
-        connection:
-          host: backstage-postgres-postgresql
-          port: 5432
-          user: backstage
-          password: backstage123
-          database: backstage
+        client: better-sqlite3
+        connection: ':memory:'
     
     catalog:
       import:
@@ -752,7 +745,7 @@ ingress:
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
-  host: backstage.127.0.0.1.nip.io
+  host: backstage.${YOUR_IP}.nip.io
   tls:
     enabled: false
 
@@ -765,9 +758,6 @@ service:
 serviceAccount:
   create: true
   automountServiceAccountToken: true
-
-postgresql:
-  enabled: false
 EOF
 
 # Upgrade Backstage with ArgoCD configuration
@@ -836,7 +826,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=backstage -n ba
 kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=100 | grep -i argocd
 
 # Access Backstage UI and check ArgoCD data
-# Visit: http://backstage.127.0.0.1.nip.io/catalog
+# Visit: http://backstage.YOUR_IP.nip.io/catalog (replace YOUR_IP with your actual IP)
 # Select a component and look for ArgoCD tab
 ```
 
@@ -1118,7 +1108,7 @@ kubectl rollout restart deployment -n backstage -l app.kubernetes.io/name=backst
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=backstage -n backstage --timeout=300s
 
 # Access Backstage and check templates
-# Visit: http://backstage.127.0.0.1.nip.io/create
+# Visit: http://backstage.YOUR_IP.nip.io/create (replace YOUR_IP with your actual IP)
 # You should see your templates listed
 ```
 
@@ -1147,7 +1137,7 @@ Think about self-service templates:
 
 Let's walk through the complete self-service workflow:
 
-1. **Open Backstage**: Visit http://backstage.127.0.0.1.nip.io
+1. **Open Backstage**: Visit http://backstage.YOUR_IP.nip.io (replace YOUR_IP with your actual IP)
 
 2. **Browse Catalog**:
    - Click "Catalog" in the left menu
@@ -1285,7 +1275,7 @@ kubectl get all -n myteam-dev
 kubectl get resourcequota -n myteam-dev -o yaml
 
 # Check in Backstage
-# 1. Visit http://backstage.127.0.0.1.nip.io
+# 1. Visit http://backstage.YOUR_IP.nip.io (replace YOUR_IP with your actual IP)
 # 2. Go to Catalog
 # 3. Search for "myteam"
 # 4. View resource details
@@ -1415,8 +1405,8 @@ kubectl get ingress -n backstage
 # Verify NGINX ingress is working
 kubectl get pods -n ingress-nginx
 
-# Test ingress directly
-curl -v http://backstage.127.0.0.1.nip.io
+# Test ingress directly (replace YOUR_IP with your actual IP)
+curl -v http://backstage.YOUR_IP.nip.io
 
 # Check Backstage service
 kubectl get svc -n backstage
@@ -1485,20 +1475,20 @@ Before finishing, verify everything is working:
 kubectl get pods -n backstage
 kubectl get pods -n argocd
 
-# Verify services are accessible
-curl -s http://backstage.127.0.0.1.nip.io | grep -i backstage
-curl -s http://argocd.127.0.0.1.nip.io | grep -i argocd
+# Verify services are accessible (replace YOUR_IP with your actual IP)
+curl -s http://backstage.YOUR_IP.nip.io | grep -i backstage
+curl -s http://argocd.YOUR_IP.nip.io | grep -i argocd
 
 # Check created resources
 kubectl get namespaces | grep -E "(myteam|frontend|backend)"
 
-# Verify Backstage catalog has entries
-curl -s http://backstage.127.0.0.1.nip.io/api/catalog/entities | jq '. | length'
+# Verify Backstage catalog has entries (replace YOUR_IP with your actual IP)
+curl -s http://backstage.YOUR_IP.nip.io/api/catalog/entities | jq '. | length'
 ```
 
 **Expected State:**
 - ✅ Backstage running and accessible via browser
-- ✅ PostgreSQL database healthy
+- ✅ Kubernetes plugin showing cluster resources
 - ✅ Kubernetes plugin showing cluster resources
 - ✅ ArgoCD integration showing application status
 - ✅ Software templates available in Create page
@@ -1531,9 +1521,6 @@ kubectl delete namespace myteam-dev --grace-period=0 --force
 
 # Uninstall Backstage
 helm uninstall backstage -n backstage
-
-# Delete PostgreSQL
-helm uninstall backstage-postgres -n backstage
 
 # Delete namespace
 kubectl delete namespace backstage
@@ -1608,13 +1595,9 @@ kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=100
 kubectl rollout restart deployment -n backstage -l app.kubernetes.io/name=backstage
 helm list -n backstage
 
-# Database Management
-kubectl get pods -n backstage -l app.kubernetes.io/name=postgresql
-kubectl logs -n backstage -l app.kubernetes.io/name=postgresql
-
-# Backstage API Testing
-curl http://backstage.127.0.0.1.nip.io/api/catalog/entities
-curl http://backstage.127.0.0.1.nip.io/api/catalog/entities?filter=kind=component
+# Backstage API Testing (replace YOUR_IP with your actual IP)
+curl http://backstage.YOUR_IP.nip.io/api/catalog/entities
+curl http://backstage.YOUR_IP.nip.io/api/catalog/entities?filter=kind=component
 
 # Configuration
 kubectl get configmap -n backstage
