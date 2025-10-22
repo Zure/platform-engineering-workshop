@@ -45,12 +45,18 @@ Workshop for Platform Engineering in a day
 
 ### 15:00 - 15:15 - Coffee Break
 
-### 15:15 - 16:30 - [LAB04: Advanced Platform Concepts - Abstractions and Interfaces](LAB04.md)
+### 15:15 - 16:30 - [LAB04A: Advanced Platform Concepts - Interfaces](LAB04.md)
+- Providing an interface for your Internal Developer Platform
+- Deploy Backstage as a developer portal
+- Integrate backstage with your platform
+- Requesting resources through backstage
+
+### 15:15 - 16:30 - [LAB04B: Advanced Platform Concepts - Abstractions](LAB04.md)
 - Abstract Azure resources away in App Concepts
-- Interfaces for your Internal Developer Platform
-- Custom Resource Definitions and platform abstractions
-- Golden Path patterns for developer self-service
-- Platform interface design and evolution strategies
+- Using KRO and ASO together
+- Deploy KRO in your cluster
+- Create App Concepts that use ASO resources
+
 
 ### 16:30 - 17:00 - Wrap up / How to convince your boss / How to continue at home
 - Adoption
