@@ -225,6 +225,15 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 
 # Wait for all pods to be ready (this may take a few minutes)
 kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
+
+# Configure ArgoCD to run in insecure mode (HTTP) for the workshop
+kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '{"data":{"server.insecure":"true"}}'
+
+# Restart the ArgoCD server to apply the configuration
+kubectl rollout restart deployment argocd-server -n argocd
+
+# Wait for the server to be ready again
+kubectl wait --for=condition=available --timeout=120s deployment/argocd-server -n argocd
 ```
 
 ### Access ArgoCD UI
@@ -246,7 +255,7 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 spec:
   ingressClassName: nginx
   rules:
@@ -259,7 +268,7 @@ spec:
           service:
             name: argocd-server
             port:
-              number: 443
+              number: 80
 EOF
 ```
 
@@ -270,10 +279,10 @@ Now you can access ArgoCD at: `http://argocd.YOUR_IP.nip.io`
 #### Option 2: Port Forwarding (Alternative)
 ```bash
 # Forward the ArgoCD server port to your local machine
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+kubectl port-forward svc/argocd-server -n argocd 8080:80
 ```
 
-Now you can access ArgoCD at: `https://localhost:8080`
+Now you can access ArgoCD at: `http://localhost:8080`
 
 #### Option 3: Load Balancer (Alternative)
 ```bash
@@ -295,9 +304,8 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.pas
 
 1. Open your browser and navigate to:
    - **Ingress**: `http://argocd.YOUR_IP.nip.io` (replace YOUR_IP with your actual IP)
-   - **Port forwarding**: `https://localhost:8080`
-2. If using port forwarding, accept the self-signed certificate warning
-3. Use the following credentials:
+   - **Port forwarding**: `http://localhost:8080`
+2. Use the following credentials:
    - Username: `admin`
    - Password: (the password you retrieved from the previous step)
 
@@ -436,7 +444,7 @@ kubectl logs -n ingress-nginx deployment/ingress-nginx-controller
 #### Port 8080 Already in Use
 ```bash
 # Use a different port
-kubectl port-forward svc/argocd-server -n argocd 8081:443
+kubectl port-forward svc/argocd-server -n argocd 8081:80
 ```
 
 ### Cleanup (Optional)
