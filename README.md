@@ -45,7 +45,7 @@ Workshop for Platform Engineering in a day
 
 ### 15:00 - 15:15 - Coffee Break
 
-### 15:15 - 16:30 - [LAB04A: Advanced Platform Concepts - Interfaces](LAB04.md)
+### 15:15 - 16:30 - [LAB04A: Advanced Platform Concepts - User Interfaces](LAB04.md)
 - Providing an interface for your Internal Developer Platform
 - Deploy Backstage as a developer portal
 - Integrate backstage with your platform
@@ -56,7 +56,6 @@ Workshop for Platform Engineering in a day
 - Using KRO and ASO together
 - Deploy KRO in your cluster
 - Create App Concepts that use ASO resources
-
 
 ### 16:30 - 17:00 - Wrap up / How to convince your boss / How to continue at home
 - Adoption
