@@ -56,38 +56,49 @@ Think of resource management as a ladder:
 
 ## Part 1: Installing Kubernetes Resource Orchestrator
 
-### Install KRO using kubectl
+### Install KRO using Helm
 
-KRO is installed using standard Kubernetes manifests:
+KRO is installed using Helm charts from the Kubernetes registry:
 
 ```bash
-# Install KRO from the official repository
-kubectl apply -f https://github.com/Azure/kro/releases/download/v0.1.0/kro.yaml
+# Fetch the latest release version from GitHub
+export KRO_VERSION=$(curl -sL \
+    https://api.github.com/repos/kubernetes-sigs/kro/releases/latest | \
+    jq -r '.tag_name | ltrimstr("v")'
+  )
 
-# Wait for KRO to be ready
-kubectl wait --for=condition=available --timeout=300s deployment/kro-controller-manager -n kro-system
+# Validate KRO_VERSION populated with a version
+echo $KRO_VERSION
 
-# Verify KRO is running
-kubectl get pods -n kro-system
+# Install kro using Helm
+helm install kro oci://registry.k8s.io/kro/charts/kro \
+  --namespace kro \
+  --create-namespace \
+  --version=${KRO_VERSION}
 ```
+
+**Note**: Authentication is not required for pulling charts from public OCI registries.
+
+**Troubleshooting Helm Install**: Helm install download failures may occur due to expired local credentials. To resolve this issue, clear your local credentials cache by running `helm registry logout ghcr.io` in your terminal, then retry the installation.
 
 ### Verify KRO Installation
 
+After running the installation command, verify that KRO has been installed correctly:
+
 ```bash
-# Check if KRO pods are running
-kubectl get pods -n kro-system
+# Check the Helm release
+helm -n kro list
 
-# Check KRO Custom Resource Definitions
-kubectl get crd | grep kro
+# Expected result: You should see the "kro" release listed
+# NAME	NAMESPACE	REVISION	STATUS  
+# kro 	kro      	1       	deployed
 
-# Check KRO controller logs
-kubectl logs -n kro-system deployment/kro-controller-manager
-```
+# Check the kro pods
+kubectl get pods -n kro
 
-You should see output similar to:
-```
-NAME                                      READY   STATUS    RESTARTS   AGE
-kro-controller-manager-xxxxxxxxx-xxxxx    2/2     Running   0          2m
+# Expected result: You should see kro-related pods running
+# NAME                        READY   STATUS             RESTARTS   AGE
+# kro-7d98bc6f46-jvjl5        1/1     Running            0           1s
 ```
 
 ### ✅ Verification Steps - Part 1
@@ -96,23 +107,24 @@ Let's verify KRO is installed correctly:
 
 ```bash
 # Verify KRO pod is running and ready
-kubectl get pods -n kro-system
+kubectl get pods -n kro
 
 # Check that KRO CRDs are installed
 kubectl get crd | grep kro
 # Should show: resourcegroups.kro.run
 
-# Check KRO version and status
-kubectl get deployment -n kro-system kro-controller-manager -o yaml | grep -A 5 "image:"
+# Check the Helm release status
+helm -n kro status kro
 
 # Verify KRO is ready to create resource groups
 kubectl api-resources | grep kro
 ```
 
 **Expected Output:**
-- KRO pod should show 2/2 containers READY and status Running
+- Helm release "kro" should show status "deployed"
+- KRO pod should show 1/1 containers READY and status Running
 - The `resourcegroups.kro.run` CRD should be installed
-- KRO controller manager deployment should be available
+- KRO should be running in the `kro` namespace (not `kro-system`)
 
 ### 🤔 Reflection Questions - Part 1
 
@@ -122,7 +134,7 @@ Take a moment to think about what KRO brings to the platform:
 
 2. **Platform Engineering**: KRO lets platform engineers create custom resources. How is this different from developers creating custom CRDs directly?
 
-3. **Namespace Isolation**: KRO runs in the `kro-system` namespace. What resources will it create, and where will those resources live?
+3. **Namespace Isolation**: KRO runs in the `kro` namespace. What resources will it create, and where will those resources live?
 
 4. **Comparison to Crossplane**: If you've heard of Crossplane, how might KRO be similar or different? What problems do both tools solve?
 
@@ -275,7 +287,7 @@ kubectl get resourcegroup myapp-dev-rg -n default
 az group show --name myapp-dev-rg --output table
 
 # Check KRO controller logs for any issues
-kubectl logs -n kro-system deployment/kro-controller-manager --tail=50
+kubectl logs -n kro deployment/kro --tail=50
 ```
 
 **Expected Output:**
@@ -796,7 +808,7 @@ spec:
   destinations:
   - namespace: default
     server: https://kubernetes.default.svc
-  - namespace: 'kro-system'
+  - namespace: 'kro'
     server: https://kubernetes.default.svc
 
   # Allow KRO ResourceGroups and generated resources
@@ -1193,7 +1205,7 @@ When creating KRO abstractions, follow these practices:
 
 ```bash
 # Check KRO controller logs
-kubectl logs -n kro-system deployment/kro-controller-manager --tail=100
+kubectl logs -n kro deployment/kro --tail=100
 
 # Verify the ResourceGroup definition is valid
 kubectl describe resourcegroup <name> -n default
@@ -1216,7 +1228,7 @@ kubectl describe appstorage <name>
 kubectl get appdatabase <name> -o yaml | grep -A 10 "status:"
 
 # Check KRO controller logs for reconciliation errors
-kubectl logs -n kro-system deployment/kro-controller-manager | grep -i error
+kubectl logs -n kro deployment/kro | grep -i error
 
 # Verify template variable syntax
 # Variables should be: ${schema.spec.fieldName}
@@ -1300,7 +1312,8 @@ argocd app delete developer-resources --cascade
 kubectl delete appproject platform-abstractions -n argocd
 
 # Optionally uninstall KRO
-kubectl delete -f https://github.com/Azure/kro/releases/download/v0.1.0/kro.yaml
+helm uninstall kro -n kro
+kubectl delete namespace kro
 ```
 
 ## Final Verification - Complete Lab Check
@@ -1309,7 +1322,7 @@ Before finishing, verify your complete platform:
 
 ```bash
 # Check KRO is running
-kubectl get pods -n kro-system
+kubectl get pods -n kro
 
 # Verify all ResourceGroups
 kubectl get resourcegroup -n default
@@ -1434,7 +1447,7 @@ From this lab, you should understand:
 kubectl get resourcegroup -n default
 kubectl describe resourcegroup <name>
 kubectl get crd | grep kro
-kubectl logs -n kro-system deployment/kro-controller-manager
+kubectl logs -n kro deployment/kro
 
 # Custom Resources
 kubectl get appdatabase,appstorage,appnamespace
