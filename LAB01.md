@@ -246,7 +246,7 @@ First, create an ingress resource for ArgoCD:
 
 ```bash
 # Create ArgoCD ingress configuration
-cat << EOF | kubectl apply -f -
+cat << EOF > argo-ingress.yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -270,6 +270,12 @@ spec:
             port:
               number: 80
 EOF
+```
+
+Apply the ingress configuration:
+
+```bash
+kubectl apply -f argo-ingress.yaml
 ```
 
 **Replace YOUR_IP with your actual IP address** (e.g., if your IP is 192.168.1.10, use `argocd.192.168.1.10.nip.io`).
