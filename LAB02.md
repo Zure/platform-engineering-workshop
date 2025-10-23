@@ -16,6 +16,9 @@ Before starting, ensure you have completed:
   - ArgoCD installed and accessible
   - ArgoCD CLI configured and working
   - Basic understanding of ArgoCD applications
+- ✅ **GitHub Account**: You'll need a GitHub account to create repositories
+  - Sign up at [https://github.com](https://github.com) if you don't have one
+  - Ensure you're logged in before starting the lab
 
 ## Overview
 
