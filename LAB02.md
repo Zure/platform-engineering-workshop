@@ -201,7 +201,7 @@ cat << 'EOF' > namespaces/dev/frontend-dev-namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: frontend-dev
+  name: devops-frontend-dev
   labels:
     team: frontend
     environment: dev
@@ -214,7 +214,7 @@ apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: frontend-dev-quota
-  namespace: frontend-dev
+  namespace: devops-frontend-dev
 spec:
   hard:
     requests.cpu: "2"
@@ -230,7 +230,7 @@ apiVersion: v1
 kind: LimitRange
 metadata:
   name: frontend-dev-limits
-  namespace: frontend-dev
+  namespace: devops-frontend-dev
 spec:
   limits:
   - default:
@@ -249,7 +249,7 @@ cat << 'EOF' > namespaces/dev/backend-dev-namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: backend-dev
+  name: devops-backend-dev
   labels:
     team: backend
     environment: dev
@@ -262,7 +262,7 @@ apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: backend-dev-quota
-  namespace: backend-dev
+  namespace: devops-backend-dev
 spec:
   hard:
     requests.cpu: "3"
@@ -278,7 +278,7 @@ apiVersion: v1
 kind: LimitRange
 metadata:
   name: backend-dev-limits
-  namespace: backend-dev
+  namespace: devops-backend-dev
 spec:
   limits:
   - default:
@@ -534,11 +534,11 @@ mkdir -p applications
 
 # Create the self-service application
 # Replace YOUR_GITHUB_USERNAME with your actual username
-cat << EOF > applications/self-service-namespaces.yaml
+cat << EOF > applications/self-service-namespaces-dev.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: self-service-namespaces
+  name: self-service-namespaces-dev
   namespace: argocd
 spec:
   project: self-service
@@ -546,7 +546,7 @@ spec:
   source:
     repoURL: 'https://github.com/$GITHUB_USERNAME/platform-self-service.git'
     targetRevision: HEAD
-    path: namespaces
+    path: namespaces/dev
     
   destination:
     server: https://kubernetes.default.svc
@@ -666,10 +666,10 @@ Now create the application that will sync your namespaces from GitHub to Kuberne
 
 ```bash
 # Create the application using ArgoCD CLI
-argocd app create self-service-namespaces \
+argocd app create self-service-namespaces-dev \
   --project self-service \
   --repo https://github.com/$GITHUB_USERNAME/platform-self-service.git \
-  --path namespaces \
+  --path namespaces/dev \
   --dest-server https://kubernetes.default.svc \
   --dest-namespace devops-namespaces \
   --sync-policy automated \
@@ -679,7 +679,7 @@ argocd app create self-service-namespaces \
 
 # Alternatively, apply the YAML directly
 ```bash
-kubectl apply -f applications/self-service-namespaces.yaml
+kubectl apply -f applications/self-service-namespaces-dev.yaml
 ```
 
 ### Sync the Application
@@ -790,7 +790,7 @@ cat << 'EOF' > namespaces/dev/mobile-dev-namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: mobile-dev
+  name: devops-mobile-dev
   labels:
     team: mobile
     environment: dev
@@ -803,7 +803,7 @@ apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: mobile-dev-quota
-  namespace: mobile-dev
+  namespace: devops-mobile-dev
 spec:
   hard:
     requests.cpu: "1"
@@ -819,7 +819,7 @@ apiVersion: v1
 kind: LimitRange
 metadata:
   name: mobile-dev-limits
-  namespace: mobile-dev
+  namespace: devops-mobile-dev
 spec:
   limits:
   - default:
@@ -912,7 +912,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: test-app
-  namespace: frontend-dev
+  namespace: devops-frontend-dev
 spec:
   replicas: 1
   selector:
@@ -939,11 +939,11 @@ EOF
 kubectl apply -f /tmp/test-deployment.yaml
 
 # Check the deployment
-kubectl get deployments -n frontend-dev
-kubectl get pods -n frontend-dev
+kubectl get deployments -n devops-frontend-dev
+kubectl get pods -n devops-frontend-dev
 
 # Check resource usage against quotas
-kubectl describe resourcequota frontend-dev-quota -n frontend-dev
+kubectl describe resourcequota frontend-dev-quota -n devops-frontend-dev
 
 # Clean up the test deployment
 kubectl delete -f /tmp/test-deployment.yaml
@@ -959,18 +959,18 @@ git branch
 git log --oneline -3
 
 # Verify the mobile-dev namespace was created
-kubectl get namespace mobile-dev
-kubectl describe namespace mobile-dev
+kubectl get namespace devops-mobile-dev
+kubectl describe namespace devops-mobile-dev
 
 # Check all our team namespaces
 kubectl get namespaces | grep -E "(frontend|backend|mobile)"
 
-# Verify the quota for mobile-dev
-kubectl get resourcequota -n mobile-dev
-kubectl describe resourcequota mobile-dev-quota -n mobile-dev
+# Verify the quota for devops-mobile-dev
+kubectl get resourcequota -n devops-mobile-dev
+kubectl describe resourcequota mobile-dev-quota -n devops-mobile-dev
 
 # Check in ArgoCD UI or CLI
-argocd app get self-service-namespaces
+argocd app get self-service-namespaces-dev
 ```
 
 **Verify on GitHub:**
@@ -1025,7 +1025,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: test-app
-  namespace: frontend-dev
+  namespace: devops-frontend-dev
 spec:
   replicas: 1
   selector:
@@ -1052,11 +1052,11 @@ EOF
 kubectl apply -f /tmp/test-deployment.yaml
 
 # Check the deployment
-kubectl get deployments -n frontend-dev
-kubectl get pods -n frontend-dev
+kubectl get deployments -n devops-frontend-dev
+kubectl get pods -n devops-frontend-dev
 
 # Check resource usage against quotas
-kubectl describe resourcequota frontend-dev-quota -n frontend-dev
+kubectl describe resourcequota frontend-dev-quota -n devops-frontend-dev
 
 # Clean up the test deployment
 kubectl delete -f /tmp/test-deployment.yaml
@@ -1075,7 +1075,7 @@ cat << 'EOF' > namespaces/staging/data-staging-namespace.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: data-staging
+  name: devops-data-staging
   labels:
     team: data
     environment: staging
@@ -1088,7 +1088,7 @@ apiVersion: v1
 kind: ResourceQuota
 metadata:
   name: data-staging-quota
-  namespace: data-staging
+  namespace: devops-data-staging
 spec:
   hard:
     requests.cpu: "4"
@@ -1104,7 +1104,7 @@ apiVersion: v1
 kind: LimitRange
 metadata:
   name: data-staging-limits
-  namespace: data-staging
+  namespace: devops-data-staging
 spec:
   limits:
   - default:
@@ -1143,8 +1143,8 @@ git pull origin main
 argocd app sync self-service-namespaces
 
 # Verify the new namespace
-kubectl get namespace data-staging
-kubectl describe namespace data-staging
+kubectl get namespace devops-data-staging
+kubectl describe namespace devops-data-staging
 ```
 
 ## Part 7: Advanced Self-Service Features and GitHub Workflows
@@ -1212,7 +1212,7 @@ To deploy a web application:
 
 If the "mobile" team wants to deploy their "api" application to the dev environment:
 
-1. First ensure `mobile-dev` namespace exists
+1. First ensure `devops-mobile-dev` namespace exists
 2. Copy the template and create `applications/mobile-api-dev.yaml`
 3. Replace placeholders:
    - `TEAM_NAME`: mobile
