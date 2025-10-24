@@ -197,7 +197,6 @@ spec:
       cpu: 100m
       memory: 128Mi
     type: Container
-```
 EOF
 ```
 
@@ -1396,80 +1395,6 @@ rm -rf platform-self-service
 
 # Note: Your GitHub repository will remain - delete it manually on GitHub if desired
 ```
-
-## Part 8: Monitoring and Observability
-
-### Setting Up Basic Monitoring
-
-```bash
-# Create monitoring configuration for our self-service platform
-mkdir -p monitoring
-
-cat << 'EOF' > monitoring/namespace-monitoring.yaml
-# This would typically be a ServiceMonitor or similar monitoring configuration
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: namespace-monitoring-config
-  namespace: argocd
-data:
-  prometheus.yml: |
-    global:
-      scrape_interval: 15s
-    scrape_configs:
-    - job_name: 'kubernetes-namespaces'
-      kubernetes_sd_configs:
-      - role: pod
-      relabel_configs:
-      - source_labels: [__meta_kubernetes_namespace]
-        regex: (frontend|backend|mobile|data)-.*
-        action: keep
-EOF
-
-# Commit and push
-git add monitoring/
-git commit -m "Add basic monitoring configuration for self-service namespaces"
-git push origin main
-```
-
-### ✅ Verification Steps - Part 8
-
-Verify monitoring configuration:
-
-```bash
-# Check monitoring files
-ls -la monitoring/
-cat monitoring/namespace-monitoring.yaml
-
-# Apply the monitoring config
-kubectl apply -f monitoring/namespace-monitoring.yaml
-
-# Verify the ConfigMap was created
-kubectl get configmap -n argocd | grep namespace-monitoring
-kubectl describe configmap namespace-monitoring-config -n argocd
-
-# Check the git log
-git log --oneline --all
-```
-
-**Expected Output:**
-- Monitoring directory with `namespace-monitoring.yaml`
-- ConfigMap should be created in the argocd namespace
-- Git log should show all commits made during the lab
-
-### 🤔 Reflection Questions - Part 8
-
-Consider monitoring and observability:
-
-1. **Monitoring Scope**: The configuration monitors namespaces matching `(frontend|backend|mobile|data)-.*`. How does this regex pattern work? What namespaces would it match?
-
-2. **Observability**: Why is monitoring important for a self-service platform? What metrics would be most valuable to track?
-
-3. **ConfigMap vs Deployment**: We created monitoring config as a ConfigMap. How would this integrate with an actual Prometheus deployment?
-
-4. **Alerting**: What alerts would you want to set up for this self-service platform? When should the platform team be notified?
-
-5. **Cost Tracking**: How could you use namespace labels and monitoring to track costs per team?
 
 ## Final Verification - Complete Lab Check
 
