@@ -390,12 +390,6 @@ spec:
   
   # Define where apps in this project can deploy to
   destinations:
-  - namespace: 'frontend-*'
-    server: https://kubernetes.default.svc
-  - namespace: 'backend-*'
-    server: https://kubernetes.default.svc
-  - namespace: 'data-*'
-    server: https://kubernetes.default.svc
   - namespace: 'devops-*'
     server: https://kubernetes.default.svc
   
@@ -456,11 +450,7 @@ spec:
   - '*'
   
   destinations:
-  - namespace: 'frontend-*'
-    server: https://kubernetes.default.svc
-  - namespace: 'backend-*'
-    server: https://kubernetes.default.svc
-  - namespace: 'default'
+  - namespace: 'devops-*'
     server: https://kubernetes.default.svc
   
   clusterResourceWhitelist:
@@ -680,6 +670,7 @@ argocd app create self-service-namespaces \
   --repo https://github.com/$GITHUB_USERNAME/platform-self-service.git \
   --path namespaces \
   --dest-server https://kubernetes.default.svc \
+  --dest-namespace devops-namespaces \
   --sync-policy automated \
   --auto-prune \
   --self-heal
