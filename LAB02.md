@@ -100,21 +100,16 @@ This repository contains self-service resources for development teams.
 1. Create a new branch:
    ```bash
    git checkout -b request-myteam-namespace
-   ```
 
 2. Add your namespace definition in the appropriate environment directory:
-   ```bash
    # Copy a template or create a new file
    cp namespaces/dev/frontend-dev-namespace.yaml namespaces/dev/myteam-dev-namespace.yaml
    # Edit the file with your team's details
-   ```
 
 3. Commit and push your changes:
-   ```bash
    git add namespaces/dev/myteam-dev-namespace.yaml
    git commit -m "Request namespace for myteam in dev environment"
    git push origin request-myteam-namespace
-   ```
 
 4. Create a Pull Request on GitHub
 
