@@ -550,6 +550,7 @@ spec:
     
   destination:
     server: https://kubernetes.default.svc
+    namespace: devops-namespaces # ✅ moet matchen met toegestane pattern (bv. devops-* )
     
   syncPolicy:
     automated:
