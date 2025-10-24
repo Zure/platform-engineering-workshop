@@ -480,8 +480,10 @@ spec:
     groups:
     - dev-team-members
 EOF
+```
 
 # Commit the projects
+```bash
 git add projects/
 git commit -m "Add ArgoCD project definitions for multi-tenancy
 
