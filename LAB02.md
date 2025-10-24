@@ -1225,8 +1225,10 @@ If the "mobile" team wants to deploy their "api" application to the dev environm
 4. Create a PR with the file
 5. After merge, ArgoCD will deploy your application!
 EOF
+```
 
 # Commit and push
+```bash
 git add applications/templates/
 git commit -m "Add application deployment templates
 
