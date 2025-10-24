@@ -578,8 +578,10 @@ spec:
     - /metadata/annotations
     - /metadata/labels
 EOF
+```
 
 # Commit and push the application definition
+```bash
 git add applications/
 git commit -m "Add self-service namespaces application
 
@@ -681,8 +683,10 @@ argocd app create self-service-namespaces \
   --sync-policy automated \
   --auto-prune \
   --self-heal
+```
 
 # Alternatively, apply the YAML directly
+```bash
 kubectl apply -f applications/self-service-namespaces.yaml
 ```
 
