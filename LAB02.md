@@ -81,7 +81,7 @@ This repository contains self-service resources for development teams.
 
 - `namespaces/`: Kubernetes namespace definitions
   - `dev/`: Development environment namespaces
-  - `staging/`: Staging environment namespaces  
+  - `staging/`: Staging environment namespaces
   - `prod/`: Production environment namespaces
 - `projects/`: ArgoCD project definitions
 - `applications/`: ArgoCD application definitions
@@ -381,23 +381,23 @@ metadata:
   namespace: argocd
 spec:
   description: "Self-service platform resources"
-  
+
   # Define what repositories this project can use
   sourceRepos:
   - 'https://github.com/*/platform-self-service.git'
   - 'https://github.com/*/platform-self-service'
   - '*'  # Allow all repos for flexibility during the workshop
-  
+
   # Define where apps in this project can deploy to
   destinations:
   - namespace: 'devops-*'
     server: https://kubernetes.default.svc
-  
+
   # Cluster resource allow list
   clusterResourceWhitelist:
   - group: ''
     kind: Namespace
-  
+
   # Namespace resource allow list
   namespaceResourceWhitelist:
   - group: ''
@@ -416,7 +416,7 @@ spec:
     kind: ReplicaSet
   - group: ''
     kind: Pod
-  
+
   # RBAC roles for this project
   roles:
   - name: developer
@@ -426,7 +426,7 @@ spec:
     - p, proj:self-service:developer, applications, sync, self-service/*, allow
     groups:
     - developers
-    
+
   - name: admin
     description: "Admin access for self-service resources"
     policies:
@@ -445,22 +445,22 @@ metadata:
   namespace: argocd
 spec:
   description: "Development teams applications"
-  
+
   sourceRepos:
   - '*'
-  
+
   destinations:
   - namespace: 'devops-*'
     server: https://kubernetes.default.svc
-  
+
   clusterResourceWhitelist:
   - group: ''
     kind: Namespace
-    
+
   namespaceResourceWhitelist:
   - group: '*'
     kind: '*'
-    
+
   roles:
   - name: team-member
     description: "Team member access"
@@ -524,60 +524,58 @@ Consider these questions about ArgoCD projects and multi-tenancy:
 
 ## Part 3: Creating ArgoCD Applications for Self-Service
 
-### Create the Self-Service Application
+### Create the Self-Service ApplicationSet
 
-Let's create an ArgoCD application that will monitor your GitHub repository for changes:
+Let's create an ArgoCD ApplicationSet that will monitor your GitHub repository for changes and automatically deploy resources from multiple directories:
 
 ```bash
 # Create applications directory
 mkdir -p applications
 
-# Create the self-service application
+# Create the self-service ApplicationSet
 # Replace YOUR_GITHUB_USERNAME with your actual username
-cat << EOF > applications/self-service-namespaces-dev.yaml
+cat << EOF > applications/self-service-namespaces.yaml
 apiVersion: argoproj.io/v1alpha1
-kind: Application
+kind: ApplicationSet
 metadata:
-  name: self-service-namespaces-dev
+  name: self-service-namespaces
   namespace: argocd
 spec:
-  project: self-service
-  
-  source:
-    repoURL: 'https://github.com/$GITHUB_USERNAME/platform-self-service.git'
-    targetRevision: HEAD
-    path: namespaces/dev
-    
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: devops-namespaces # ✅ moet matchen met toegestane pattern (bv. devops-* )
-    
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-    - CreateNamespace=true
-    - PrunePropagationPolicy=foreground
-    - PruneLast=true
-    
-  # Health check configuration
-  ignoreDifferences:
-  - group: v1
-    kind: Namespace
-    jsonPointers:
-    - /metadata/annotations
-    - /metadata/labels
+  generators:
+    - git:
+        repoURL: https://github.com/$GITHUB_USERNAME/platform-self-service.git
+        revision: HEAD
+        directories:
+          - path: namespaces/*
+  template:
+    metadata:
+      name: '{{path.basename}}-namespaces'
+    spec:
+      project: self-service
+      source:
+        repoURL: https://github.com/$GITHUB_USERNAME/platform-self-service.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: devops-namespaces
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
 EOF
 ```
 
-# Commit and push the application definition
+# Commit and push the ApplicationSet definition
 ```bash
 git add applications/
-git commit -m "Add self-service namespaces application
+git commit -m "Add self-service namespaces ApplicationSet
 
-- Monitors namespaces directory for changes
-- Automated sync with prune and self-heal
+- Monitors namespaces directory for changes using Git generator
+- Automatically creates applications for each namespace environment
+- Automated sync with prune and self-heal enabled
 - Creates namespaces automatically from GitHub repository"
 
 git push origin main
@@ -585,10 +583,10 @@ git push origin main
 
 ### ✅ Verification Steps - Part 3
 
-Verify the application definition is correct:
+Verify the ApplicationSet definition is correct:
 
 ```bash
-# Check the application file
+# Check the ApplicationSet file
 ls -la applications/
 cat applications/self-service-namespaces.yaml
 
@@ -597,24 +595,24 @@ git log --oneline
 ```
 
 **Expected Output:**
-- Application file `self-service-namespaces.yaml` should exist
+- ApplicationSet file `self-service-namespaces.yaml` should exist
 - It should reference `project: self-service`
-- The source path should point to `namespaces`
+- The git generator should target `namespaces/*` directories
 - Git history should show 3 commits
 
 ### 🤔 Reflection Questions - Part 3
 
-Think about ArgoCD applications and automation:
+Think about ArgoCD ApplicationSets and automation:
 
-1. **Automated Sync**: We enabled `automated` sync with `prune: true` and `selfHeal: true`. What do each of these options do? What are the risks and benefits?
+1. **ApplicationSet vs Application**: What's the difference between an ApplicationSet and a regular Application? What advantages does the ApplicationSet provide for managing multiple environments?
 
-2. **Source Path**: The application watches the `namespaces` path. What happens when someone adds a new YAML file to `namespaces/dev/`?
+2. **Git Generator**: The ApplicationSet uses a `git` generator with `directories: - path: namespaces/*`. What happens when you add a new directory like `namespaces/prod/`?
 
-3. **GitHub Repository**: We're using a real GitHub repository URL `https://github.com/$GITHUB_USERNAME/platform-self-service.git`. What advantages does this provide over a local file path? How does ArgoCD monitor the repository for changes?
+3. **Template Parameters**: Notice the `{{path.basename}}` and `{{path}}` parameters in the template. How do these get populated for each generated application?
 
-4. **Sync Options**: What does `CreateNamespace=true` do? Why might we want to use `PrunePropagationPolicy=foreground`?
+4. **Automated Sync**: We enabled `automated` sync with `prune: true` and `selfHeal: true`. What do each of these options do? What are the risks and benefits?
 
-5. **Application vs Project**: What's the relationship between an ArgoCD Application and an ArgoCD Project? Why do we need both?
+5. **Scaling**: How does using an ApplicationSet help when you need to manage namespaces across multiple environments (dev, staging, prod)?
 
 ## Part 4: Applying the Configuration to ArgoCD
 
@@ -660,38 +658,35 @@ argocd repo add git@github.com:$GITHUB_USERNAME/platform-self-service.git \
   --ssh-private-key-path ~/.ssh/id_rsa
 ```
 
-### Create the ArgoCD Application
+### Create the ArgoCD ApplicationSet
 
-Now create the application that will sync your namespaces from GitHub to Kubernetes:
+Now create the ApplicationSet that will sync your namespaces from GitHub to Kubernetes:
 
 ```bash
-# Create the application using ArgoCD CLI
-argocd app create self-service-namespaces-dev \
-  --project self-service \
-  --repo https://github.com/$GITHUB_USERNAME/platform-self-service.git \
-  --path namespaces/dev \
-  --dest-server https://kubernetes.default.svc \
-  --dest-namespace devops-namespaces \
-  --sync-policy automated \
-  --auto-prune \
-  --self-heal
+# Apply the ApplicationSet directly using kubectl
+kubectl apply -f applications/self-service-namespaces.yaml
+
+# The ApplicationSet will automatically generate Applications for each directory under namespaces/
+# You can verify this by checking the generated applications
 ```
 
-# Alternatively, apply the YAML directly
-```bash
-kubectl apply -f applications/self-service-namespaces-dev.yaml
-```
+### Sync the Generated Applications
 
-### Sync the Application
-
-Trigger an initial sync to create the namespaces:
+The ApplicationSet will automatically generate and sync applications for each environment:
 
 ```bash
-# Sync the application
-argocd app sync self-service-namespaces
+# Check which applications were generated by the ApplicationSet
+argocd app list | grep namespaces
 
-# Watch the sync progress
-argocd app get self-service-namespaces --watch
+# You should see applications like:
+# - dev-namespaces (for namespaces/dev directory)
+# - staging-namespaces (for namespaces/staging directory, if it exists)
+
+# Sync all generated applications (they should auto-sync, but you can trigger manually)
+for app in $(argocd app list -o name | grep namespaces); do
+  echo "Syncing $app"
+  argocd app sync $app
+done
 
 # Verify the namespaces were created
 kubectl get namespaces | grep -E "(frontend|backend)"
@@ -699,8 +694,8 @@ kubectl get resourcequota --all-namespaces
 kubectl get limitranges --all-namespaces
 
 # Check the labels and annotations
-kubectl describe namespace frontend-dev
-kubectl describe namespace backend-dev
+kubectl describe namespace devops-frontend-dev
+kubectl describe namespace devops-backend-dev
 ```
 
 ### ✅ Verification Steps - Part 4
@@ -721,31 +716,32 @@ kubectl get appprojects -n argocd
 # Verify the repository was added to ArgoCD
 argocd repo list
 
-# Check the ArgoCD application status
-argocd app get self-service-namespaces
-argocd app list
+# Check the ApplicationSet and generated applications
+kubectl get applicationset -n argocd
+argocd app list | grep namespaces
 
 # Verify namespaces were created
 kubectl get namespaces | grep -E "(frontend|backend)"
 
 # Check ResourceQuotas are in place
-kubectl get resourcequota -n frontend-dev
-kubectl get resourcequota -n backend-dev
+kubectl get resourcequota -n devops-frontend-dev
+kubectl get resourcequota -n devops-backend-dev
 
 # Verify LimitRanges are applied
-kubectl get limitrange -n frontend-dev
-kubectl get limitrange -n backend-dev
+kubectl get limitrange -n devops-frontend-dev
+kubectl get limitrange -n devops-backend-dev
 
 # Inspect the namespace details
-kubectl describe namespace frontend-dev
-kubectl get namespace frontend-dev -o yaml
+kubectl describe namespace devops-frontend-dev
+kubectl get namespace devops-frontend-dev -o yaml
 ```
 
 **Expected Output:**
 - `argocd proj list` should show both `self-service` and `dev-teams` projects
 - `argocd repo list` should show your GitHub repository
-- `argocd app get self-service-namespaces` should show status as "Synced" and "Healthy"
-- `kubectl get namespaces` should show `frontend-dev` and `backend-dev`
+- `kubectl get applicationset -n argocd` should show the `self-service-namespaces` ApplicationSet
+- `argocd app list | grep namespaces` should show generated applications like `dev-namespaces`
+- `kubectl get namespaces` should show `devops-frontend-dev` and `devops-backend-dev`
 - Each namespace should have a ResourceQuota and LimitRange
 - Namespace labels should include `team`, `environment`, and `managed-by`
 
@@ -753,23 +749,26 @@ kubectl get namespace frontend-dev -o yaml
 
 You can also verify this in the ArgoCD web interface:
 1. Open ArgoCD in your browser (e.g., http://argocd.127.0.0.1.nip.io)
-2. You should see the `self-service-namespaces` application
-3. Click on it to see the visualization of deployed resources
-4. The application should be in "Synced" and "Healthy" state
+2. You should see the `self-service-namespaces` ApplicationSet
+3. You should also see generated applications like `dev-namespaces`
+4. Click on any generated application to see the visualization of deployed resources
+5. All applications should be in "Synced" and "Healthy" state
 
 ### 🤔 Reflection Questions - Part 4
 
 Consider what you've deployed:
 
-1. **Project Visibility**: When you run `argocd proj get self-service`, what information is shown? What are the key restrictions this project enforces?
+1. **ApplicationSet Benefits**: How does the ApplicationSet make it easier to manage multiple environments compared to creating individual Applications? What happens when you add a new environment directory?
 
-2. **Resource Limits**: Look at the output of `kubectl describe resourcequota -n frontend-dev`. How much of the quota is currently used vs available?
+2. **Generated Applications**: Look at the output of `argocd app list | grep namespaces`. How do the generated application names relate to the directory structure in your repository?
 
-3. **Default Limits**: When you inspect the LimitRange, you see `default` and `defaultRequest` values. When do these defaults get applied to pods?
+3. **Resource Limits**: Look at the output of `kubectl describe resourcequota -n devops-frontend-dev`. How much of the quota is currently used vs available?
 
-4. **Namespace Metadata**: Why did we add labels like `team`, `environment`, and `managed-by` to the namespaces? How could these be useful?
+4. **Default Limits**: When you inspect the LimitRange, you see `default` and `defaultRequest` values. When do these defaults get applied to pods?
 
-5. **Validation**: If you try to create a pod in `frontend-dev` without specifying resource requests/limits, what would happen? Why?
+5. **Namespace Metadata**: Why did we add labels like `team`, `environment`, and `managed-by` to the namespaces? How could these be useful?
+
+6. **Validation**: If you try to create a pod in `devops-frontend-dev` without specifying resource requests/limits, what would happen? Why?
 
 ## Part 5: Demonstrating the Self-Service Workflow
 
@@ -850,15 +849,15 @@ git push origin request-mobile-dev-namespace
 3. Click "Compare & pull request"
 4. Fill in the Pull Request details:
    - **Title**: "Request mobile team development namespace"
-   - **Description**: 
+   - **Description**:
      ```
      ## Namespace Request
-     
+
      **Team**: Mobile
      **Environment**: Development
      **Contact**: mobile-team@company.com
      **Purpose**: Mobile application development environment
-     
+
      ## Resources
      - CPU: 1-2 cores
      - Memory: 2-4Gi
@@ -883,22 +882,22 @@ In a real environment, a platform team member would review the PR. For this work
 git checkout main
 git pull origin main
 
-# Watch ArgoCD detect the change and sync
-argocd app get self-service-namespaces --watch
+# Watch ArgoCD detect the change and sync the generated applications
+argocd app list | grep namespaces
 
 # After a few moments (ArgoCD polls every 3 minutes by default), verify the namespace was created
-kubectl get namespace mobile-dev
+kubectl get namespace devops-mobile-dev
 
-# If you don't want to wait, you can manually trigger a sync
-argocd app sync self-service-namespaces
+# If you don't want to wait, you can manually trigger a sync on the dev environment application
+argocd app sync dev-namespaces
 
 # Verify it was created
-kubectl get namespace mobile-dev
-kubectl describe namespace mobile-dev
+kubectl get namespace devops-mobile-dev
+kubectl describe namespace devops-mobile-dev
 
 # Check the resource quota
-kubectl get resourcequota -n mobile-dev
-kubectl describe resourcequota mobile-dev-quota -n mobile-dev
+kubectl get resourcequota -n devops-mobile-dev
+kubectl describe resourcequota mobile-dev-quota -n devops-mobile-dev
 ```
 
 ### Testing Resource Quotas
@@ -970,7 +969,7 @@ kubectl get resourcequota -n devops-mobile-dev
 kubectl describe resourcequota mobile-dev-quota -n devops-mobile-dev
 
 # Check in ArgoCD UI or CLI
-argocd app get self-service-namespaces-dev
+argocd app get dev-namespaces
 ```
 
 **Verify on GitHub:**
@@ -981,15 +980,15 @@ argocd app get self-service-namespaces-dev
 
 **Verify in ArgoCD UI:**
 - Open ArgoCD web interface
-- Click on the `self-service-namespaces` application
+- Click on the `dev-namespaces` application (generated by the ApplicationSet)
 - You should see the mobile-dev namespace in the resource tree
 - All resources should be in "Synced" and "Healthy" state
 
 **Expected Output:**
-- `mobile-dev` namespace should exist with appropriate labels
+- `devops-mobile-dev` namespace should exist with appropriate labels
 - Resource quota should show limits: 1-2 CPU, 2-4Gi memory
 - Git log should show the merge commit from GitHub
-- ArgoCD should show the application is synced
+- ArgoCD should show the generated application (dev-namespaces) is synced
 - Pull request on GitHub should be merged and closed
 
 ### 🤔 Reflection Questions - Part 5
@@ -1139,8 +1138,12 @@ git push origin request-data-staging-namespace
 git checkout main
 git pull origin main
 
-# Sync ArgoCD (or wait for auto-sync)
-argocd app sync self-service-namespaces
+# The ApplicationSet will automatically generate a new application for the staging environment
+# Check if a staging-namespaces application was created
+argocd app list | grep staging
+
+# If the application exists, sync it (or wait for auto-sync)
+argocd app sync staging-namespaces
 
 # Verify the new namespace
 kubectl get namespace devops-data-staging
@@ -1166,16 +1169,16 @@ metadata:
   namespace: argocd
 spec:
   project: dev-teams
-  
+
   source:
     repoURL: 'https://github.com/TEAM_NAME/APP_NAME.git'
     targetRevision: HEAD
     path: k8s
-    
+
   destination:
     server: https://kubernetes.default.svc
     namespace: TEAM_NAME-ENVIRONMENT
-    
+
   syncPolicy:
     automated:
       prune: true
@@ -1196,7 +1199,7 @@ To deploy a web application:
 2. Copy `web-app-template.yaml`
 3. Replace the following placeholders:
    - `TEAM_NAME`: Your team name
-   - `APP_NAME`: Your application name  
+   - `APP_NAME`: Your application name
    - `ENVIRONMENT`: Target environment (dev/staging/prod)
 4. Save as `applications/TEAM_NAME-APP_NAME.yaml`
 5. Submit a Pull Request to this repository
@@ -1258,7 +1261,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-      
+
       - name: Validate YAML syntax
         run: |
           for file in $(find namespaces -name "*.yaml"); do
@@ -1266,7 +1269,7 @@ jobs:
             # Check if file is valid YAML
             python3 -c "import yaml; yaml.safe_load(open('$file'))" || exit 1
           done
-      
+
       - name: Check resource limits
         run: |
           echo "✅ YAML validation passed"
@@ -1326,7 +1329,7 @@ Think about application templates and advanced features:
 
 5. **Automation vs Control**: We've enabled automated sync and self-heal for the application template. In what scenarios might you want to disable automation?
 
-6. **Scaling the Platform**: How would you handle 50 teams each with 5 applications? Would creating 250 individual Application manifests be manageable? What alternatives exist? (Hint: Look into ApplicationSets)
+6. **Scaling the Platform**: Now that you're using ApplicationSets, how does this approach scale better than individual Applications? What would happen if you added 10 more environment directories?
 
 7. **GitHub Actions**: If you added the GitHub Actions workflow, how does automated validation improve the self-service experience? What other validations could you add?
 
@@ -1375,10 +1378,14 @@ If you need to start over or clean up resources:
 # Delete created namespaces
 kubectl delete namespace frontend-dev backend-dev mobile-dev data-staging 2>/dev/null || true
 
-# Delete ArgoCD applications
-argocd app delete self-service-namespaces --yes
+# Delete the ApplicationSet (this will also delete generated applications)
+kubectl delete applicationset self-service-namespaces -n argocd
 
-# Delete ArgoCD projects  
+# Or delete individual generated applications if needed
+# argocd app delete dev-namespaces --yes
+# argocd app delete staging-namespaces --yes
+
+# Delete ArgoCD projects
 argocd proj delete self-service dev-teams
 
 # Remove the GitHub repository from ArgoCD
@@ -1407,6 +1414,10 @@ kubectl get resourcequota --all-namespaces
 
 # Check all commits in your self-service repo
 git log --oneline --graph --all
+
+# Check the ApplicationSet and all generated applications
+kubectl get applicationset -n argocd
+argocd app list | grep namespaces
 
 # Verify the complete directory structure
 tree . -L 3 2>/dev/null || find . -maxdepth 3 -not -path '*/\.git/*'
