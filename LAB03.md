@@ -162,7 +162,7 @@ Take a moment to think about what you've set up:
 
 3. **Credential Security**: The Service Principal credentials are sensitive. How should these be managed in a production environment? What tools or practices would you use?
 
-4. **Azure Regions**: When creating Azure resources, you'll need to specify a location (like "East US"). Why is region selection important for cloud resources?
+4. **Azure Regions**: When creating Azure resources, you'll need to specify a location (like "Sweden Central"). Why is region selection important for cloud resources?
 
 5. **Cost Awareness**: Azure resources incur costs. How would you track and control costs for resources created through ASO in a multi-team environment?
 
@@ -339,7 +339,7 @@ metadata:
   name: workshop-rg
   namespace: default
 spec:
-  location: eastus
+  location: swedencentral
   tags:
     environment: workshop
     managed-by: azure-service-operator
@@ -356,7 +356,7 @@ metadata:
   name: workshopstorageuniqueid
   namespace: default
 spec:
-  location: eastus
+  location: swedencentral
   kind: StorageV2
   sku:
     name: Standard_LRS
@@ -604,7 +604,7 @@ metadata:
   name: workshop-rg
   namespace: default
 spec:
-  location: eastus
+  location: swedencentral
   tags:
     environment: workshop
     managed-by: azure-service-operator
@@ -711,7 +711,7 @@ kubectl logs -n azureserviceoperator-system deployment/azureserviceoperator-cont
 
 # Common causes:
 # - Storage account name not globally unique
-# - Invalid Azure region name (use 'eastus' not 'East US')
+# - Invalid Azure region name (use 'swedencentral' not 'Sweden Central')
 # - Service Principal lacks required permissions
 # - Azure subscription quota limits reached
 ```
