@@ -143,14 +143,14 @@ Backstage needs to be accessible via ingress. First, determine your IP address:
 
 ```bash
 # On Linux/macOS
-export MY_IP=$(hostname -I | awk '{print $1}')
+export YOUR_IP=$(hostname -I | awk '{print $1}')
 
 # On macOS (alternative)
-export MY_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1)
+export YOUR_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1)
 
 # Verify
-echo "Your IP: $MY_IP"
-echo "Backstage will be available at: http://backstage.$MY_IP.nip.io"
+echo "Your IP: $YOUR_IP"
+echo "Backstage will be available at: http://backstage.$YOUR_IP.nip.io"
 ```
 
 ### Create Backstage Configuration
@@ -162,19 +162,19 @@ Create a minimal Backstage configuration focused on our workshop needs:
 cat << EOF > /tmp/backstage-app-config.yaml
 app:
   title: Platform Engineering Workshop
-  baseUrl: http://backstage.${MY_IP}.nip.io
+  baseUrl: http://backstage.${YOUR_IP}.nip.io
 
 organization:
   name: Workshop
 
 backend:
-  baseUrl: http://backstage.${MY_IP}.nip.io
+  baseUrl: http://backstage.${YOUR_IP}.nip.io
   listen:
     port: 7007
   csp:
     connect-src: ["'self'", 'http:', 'https:']
   cors:
-    origin: http://backstage.${MY_IP}.nip.io
+    origin: http://backstage.${YOUR_IP}.nip.io
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
     credentials: true
   database:
@@ -311,7 +311,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: backstage.${MY_IP}.nip.io
+  - host: backstage.${YOUR_IP}.nip.io
     http:
       paths:
       - path: /
@@ -343,10 +343,10 @@ kubectl get svc -n backstage
 kubectl get ingress -n backstage
 
 # Test Backstage is responding
-curl -I http://backstage.${MY_IP}.nip.io/healthcheck
+curl -I http://backstage.${YOUR_IP}.nip.io/healthcheck
 
 # Open Backstage in browser
-echo "Open Backstage at: http://backstage.${MY_IP}.nip.io"
+echo "Open Backstage at: http://backstage.${YOUR_IP}.nip.io"
 ```
 
 **Expected Output:**
@@ -782,7 +782,7 @@ kubectl get configmaps -n backstage
 kubectl logs -n backstage -l app=backstage --tail=100 | grep -i template
 
 # Access Backstage UI
-echo "Open Backstage at: http://backstage.${MY_IP}.nip.io"
+echo "Open Backstage at: http://backstage.${YOUR_IP}.nip.io"
 echo "Navigate to 'Create' to see your templates"
 ```
 
@@ -799,7 +799,7 @@ Now let's test the complete workflow: Request resources via Backstage → PR cre
 
 1. **Open Backstage in your browser**:
    ```bash
-   echo "Open: http://backstage.${MY_IP}.nip.io"
+   echo "Open: http://backstage.${YOUR_IP}.nip.io"
    ```
 
 2. **Navigate to Create page**:
