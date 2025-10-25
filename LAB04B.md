@@ -152,8 +152,8 @@ A KRO **ResourceGroup** (not to be confused with Azure Resource Groups) is a tem
 Let's start with a simple example that creates an Azure Resource Group:
 
 ```bash
-# Navigate to your azure-resources repository
-cd ~/azure-resources-workshop
+# Navigate to your platform-self-service repository from LAB02
+cd ~/platform-self-service
 
 # Create a directory for KRO definitions
 mkdir -p kro-definitions
@@ -803,7 +803,7 @@ spec:
   description: "Project for KRO abstractions and developer resources"
 
   sourceRepos:
-  - 'https://github.com/*/azure-resources-workshop.git'
+  - 'https://github.com/*/platform-self-service.git'
 
   destinations:
   - namespace: default
@@ -844,7 +844,7 @@ argocd proj get platform-abstractions
 # Create application for KRO definitions (platform team manages)
 argocd app create kro-definitions \
   --project platform-abstractions \
-  --repo https://github.com/YOUR_USERNAME/azure-resources-workshop.git \
+  --repo https://github.com/$GITHUB_USERNAME/platform-self-service.git \
   --path kro-definitions \
   --dest-server https://kubernetes.default.svc \
   --dest-namespace default \
@@ -855,7 +855,7 @@ argocd app create kro-definitions \
 # Create application for developer resources (developers can request via PR)
 argocd app create developer-resources \
   --project platform-abstractions \
-  --repo https://github.com/YOUR_USERNAME/azure-resources-workshop.git \
+  --repo https://github.com/$GITHUB_USERNAME/platform-self-service.git \
   --path developer-resources \
   --dest-server https://kubernetes.default.svc \
   --dest-namespace default \
@@ -937,7 +937,7 @@ Imagine a new team wants to deploy an application that needs both a database and
 
 ```bash
 # Navigate to your repository
-cd ~/azure-resources-workshop
+cd ~/platform-self-service
 
 # Create a new application request
 cat << 'EOF' > developer-resources/newteam-app.yaml
@@ -1025,7 +1025,7 @@ Verify the complete self-service workflow:
 
 ```bash
 # Verify the developer request was committed
-cd ~/azure-resources-workshop
+cd ~/platform-self-service
 git log --oneline -5
 
 # Check ArgoCD synced the changes
@@ -1267,7 +1267,7 @@ argocd app sync developer-resources --prune
 
 # Check if repository is accessible
 argocd repo list
-argocd repo get https://github.com/YOUR_USERNAME/azure-resources-workshop.git
+argocd repo get https://github.com/$GITHUB_USERNAME/platform-self-service.git
 ```
 
 #### Issue: Variable Substitution Not Working
@@ -1343,7 +1343,7 @@ az group list --output table | grep -E "(myapp|newteam)"
 argocd app list | grep platform-abstractions
 
 # Verify GitOps is working
-cd ~/azure-resources-workshop
+cd ~/platform-self-service
 git log --oneline --graph
 ```
 
