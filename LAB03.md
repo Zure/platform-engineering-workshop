@@ -373,7 +373,7 @@ EOF
 
 # Create additional examples for team-specific namespaces (created in LAB02)
 # These show how teams can deploy Azure resources in their own namespaces
-cat << 'EOF' > resource-groups/frontend-team-rg.yaml
+cat << 'EOF' > azure-resources/resource-groups/frontend-team-rg.yaml
 apiVersion: resources.azure.com/v1api20200601
 kind: ResourceGroup
 metadata:
@@ -388,7 +388,7 @@ spec:
     workshop: platform-engineering
 EOF
 
-cat << 'EOF' > storage-accounts/frontend-team-storage.yaml
+cat << 'EOF' > azure-resources/storage-accounts/frontend-team-storage.yaml
 apiVersion: storage.azure.com/v1api20230101
 kind: StorageAccount
 metadata:
