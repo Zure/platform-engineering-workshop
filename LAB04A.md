@@ -172,7 +172,7 @@ backend:
   listen:
     port: 7007
   csp:
-    connect-src: ["'self'", 'http:', 'https:']
+      connect-src: ["'self'", "http:", "https:"]
   cors:
     origin: http://backstage.${YOUR_IP}.nip.io
     methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
