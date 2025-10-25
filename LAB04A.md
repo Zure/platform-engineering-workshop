@@ -110,7 +110,7 @@ Create a template that developers can easily customize:
 ```bash
 cat << 'EOF' > templates/namespaces/namespace-template.yaml
 # Kubernetes Namespace Request Template
-# 
+#
 # Instructions:
 # 1. Copy this file to: namespaces/{environment}/{your-team}-namespace.yaml
 # 2. Replace all {{PLACEHOLDERS}} with your values
@@ -462,7 +462,7 @@ if [[ "$COMMIT_NOW" == "y" || "$COMMIT_NOW" == "Y" ]]; then
 Requested by: ${CONTACT_EMAIL}
 Purpose: ${PURPOSE}
 Resources: ${CPU_CORES} CPU cores, ${MEMORY_GB}GB memory"
-    
+
     echo
     echo "✅ Changes committed locally!"
     echo "Run 'git push origin main' to push to GitHub and create a PR"
@@ -603,7 +603,7 @@ Environment: ${ENVIRONMENT}
 Purpose: ${PURPOSE}
 Region: ${AZURE_REGION}
 SKU: ${SKU}"
-    
+
     echo
     echo "✅ Changes committed locally!"
     echo "Run 'git push origin main' to push to GitHub and create a PR"
@@ -833,6 +833,83 @@ cat << 'EOF' > templates/helpers/self-service-ui.html
         .instructions li {
             margin-bottom: 5px;
         }
+        .github-config {
+            background: #f0fff4;
+            border: 2px solid #48bb78;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .config-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: end;
+        }
+        .config-row .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        .config-row button {
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+        .status-message {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+        .status-success {
+            background: #c6f6d5;
+            border: 1px solid #48bb78;
+            color: #22543d;
+        }
+        .status-error {
+            background: #fed7d7;
+            border: 1px solid #e53e3e;
+            color: #742a2a;
+        }
+        .status-info {
+            background: #bee3f8;
+            border: 1px solid #3182ce;
+            color: #2a4365;
+        }
+        .auto-commit-section {
+            background: #fefcbf;
+            border: 2px solid #d69e2e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .auto-commit-section h4 {
+            color: #744210;
+            margin-bottom: 15px;
+        }
+        .commit-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .commit-btn {
+            background: #d69e2e;
+            color: white;
+        }
+        .commit-btn:hover {
+            background: #b7791f;
+        }
+        .commit-btn:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+        .pr-btn {
+            background: #805ad5;
+            color: white;
+        }
+        .pr-btn:hover {
+            background: #6b46c1;
+        }
     </style>
 </head>
 <body>
@@ -841,6 +918,31 @@ cat << 'EOF' > templates/helpers/self-service-ui.html
             <h1>🚀 Platform Self-Service Portal</h1>
             <p class="subtitle">Request namespaces and Azure resources with ease</p>
         </header>
+
+        <!-- GitHub Configuration Section -->
+        <div class="github-config">
+            <h3>🔧 GitHub Integration Setup</h3>
+            <p>Configure your GitHub settings to enable automatic commits and PR creation.</p>
+
+            <div class="config-row">
+                <div class="form-group">
+                    <label>GitHub Username</label>
+                    <input type="text" id="gh-username" placeholder="your-username">
+                </div>
+                <div class="form-group">
+                    <label>Repository Name</label>
+                    <input type="text" id="gh-repo" placeholder="platform-self-service">
+                </div>
+                <div class="form-group">
+                    <label>Personal Access Token</label>
+                    <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx">
+                    <div class="help-text">Token needs 'repo' scope. <a href="https://github.com/settings/tokens" target="_blank">Create one here</a></div>
+                </div>
+                <button onclick="testGitHubConnection()">Test Connection</button>
+            </div>
+
+            <div id="gh-status"></div>
+        </div>
 
         <div class="tabs">
             <button class="tab active" onclick="showTab('namespace')">Namespace Request</button>
@@ -903,9 +1005,25 @@ cat << 'EOF' > templates/helpers/self-service-ui.html
                 <h3>Generated YAML</h3>
                 <pre id="ns-yaml"></pre>
                 <button class="copy-btn" onclick="copyToClipboard('ns-yaml')">📋 Copy to Clipboard</button>
-                
+
+                <div class="auto-commit-section">
+                    <h4>🚀 Automatic GitHub Integration</h4>
+                    <p>Skip the manual copy-paste! Let the portal commit directly to your repository.</p>
+
+                    <div class="commit-controls">
+                        <button class="commit-btn" onclick="commitNamespaceToGithub()" id="ns-commit-btn" disabled>
+                            📝 Commit to GitHub
+                        </button>
+                        <button class="pr-btn" onclick="createNamespacePR()" id="ns-pr-btn" disabled>
+                            🔀 Create Pull Request
+                        </button>
+                    </div>
+
+                    <div id="ns-commit-status"></div>
+                </div>
+
                 <div class="instructions">
-                    <h4>Next Steps:</h4>
+                    <h4>Manual Steps (if not using auto-commit):</h4>
                     <ol>
                         <li>Copy the YAML above</li>
                         <li>Save it to: <code>namespaces/<span id="ns-env-path"></span>/<span id="ns-team-path"></span>-namespace.yaml</code></li>
@@ -971,9 +1089,25 @@ cat << 'EOF' > templates/helpers/self-service-ui.html
                 <h3>Generated YAML</h3>
                 <pre id="st-yaml"></pre>
                 <button class="copy-btn" onclick="copyToClipboard('st-yaml')">📋 Copy to Clipboard</button>
-                
+
+                <div class="auto-commit-section">
+                    <h4>🚀 Automatic GitHub Integration</h4>
+                    <p>Skip the manual copy-paste! Let the portal commit directly to your repository.</p>
+
+                    <div class="commit-controls">
+                        <button class="commit-btn" onclick="commitStorageToGithub()" id="st-commit-btn" disabled>
+                            📝 Commit to GitHub
+                        </button>
+                        <button class="pr-btn" onclick="createStoragePR()" id="st-pr-btn" disabled>
+                            🔀 Create Pull Request
+                        </button>
+                    </div>
+
+                    <div id="st-commit-status"></div>
+                </div>
+
                 <div class="instructions">
-                    <h4>Next Steps:</h4>
+                    <h4>Manual Steps (if not using auto-commit):</h4>
                     <ol>
                         <li>Copy the YAML above</li>
                         <li>Save it to: <code>azure-resources/storage-accounts/<span id="st-name-path"></span>.yaml</code></li>
@@ -987,19 +1121,210 @@ cat << 'EOF' > templates/helpers/self-service-ui.html
     </div>
 
     <script>
+        // Global variables for generated YAML content
+        let currentNamespaceYAML = '';
+        let currentNamespaceFilePath = '';
+        let currentStorageYAML = '';
+        let currentStorageFilePath = '';
+
         function showTab(tabName) {
             // Hide all tabs
             document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
             document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
-            
+
             // Show selected tab
             document.getElementById(tabName).classList.add('active');
             event.target.classList.add('active');
         }
 
-        function generateNamespaceYAML(event) {
+        // GitHub API Helper Functions
+        function getGitHubConfig() {
+            return {
+                username: document.getElementById('gh-username').value,
+                repo: document.getElementById('gh-repo').value,
+                token: document.getElementById('gh-token').value
+            };
+        }
+
+        function updateStatus(elementId, message, type = 'info') {
+            const statusDiv = document.getElementById(elementId);
+            statusDiv.innerHTML = `<div class="status-message status-${type}">${message}</div>`;
+        }
+
+        async function testGitHubConnection() {
+            const config = getGitHubConfig();
+
+            if (!config.username || !config.repo || !config.token) {
+                updateStatus('gh-status', '❌ Please fill in all GitHub configuration fields', 'error');
+                return;
+            }
+
+            updateStatus('gh-status', '🔄 Testing GitHub connection...', 'info');
+
+            try {
+                const response = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}`, {
+                    headers: {
+                        'Authorization': `token ${config.token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (response.ok) {
+                    const repo = await response.json();
+                    updateStatus('gh-status', `✅ Connected to ${repo.full_name} (${repo.default_branch} branch)`, 'success');
+
+                    // Enable commit buttons
+                    updateCommitButtonStates();
+                } else if (response.status === 404) {
+                    updateStatus('gh-status', '❌ Repository not found. Check username and repository name.', 'error');
+                } else if (response.status === 401) {
+                    updateStatus('gh-status', '❌ Authentication failed. Check your personal access token.', 'error');
+                } else {
+                    updateStatus('gh-status', `❌ Error: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                updateStatus('gh-status', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        function updateCommitButtonStates() {
+            const config = getGitHubConfig();
+            const isConfigured = config.username && config.repo && config.token;
+
+            // Update namespace buttons
+            const nsCommitBtn = document.getElementById('ns-commit-btn');
+            const nsPrBtn = document.getElementById('ns-pr-btn');
+            if (nsCommitBtn) {
+                nsCommitBtn.disabled = !isConfigured || !currentNamespaceYAML;
+            }
+            if (nsPrBtn) {
+                nsPrBtn.disabled = !isConfigured || !currentNamespaceYAML;
+            }
+
+            // Update storage buttons
+            const stCommitBtn = document.getElementById('st-commit-btn');
+            const stPrBtn = document.getElementById('st-pr-btn');
+            if (stCommitBtn) {
+                stCommitBtn.disabled = !isConfigured || !currentStorageYAML;
+            }
+            if (stPrBtn) {
+                stPrBtn.disabled = !isConfigured || !currentStorageYAML;
+            }
+        }
+
+        async function commitFileToGitHub(filePath, content, commitMessage, statusElementId) {
+            const config = getGitHubConfig();
+
+            updateStatus(statusElementId, '🔄 Committing to GitHub...', 'info');
+
+            try {
+                // First, get the current file (if it exists) to get its SHA
+                let sha = null;
+                try {
+                    const existingResponse = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}/contents/${filePath}`, {
+                        headers: {
+                            'Authorization': `token ${config.token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (existingResponse.ok) {
+                        const existingFile = await existingResponse.json();
+                        sha = existingFile.sha;
+                    }
+                } catch (e) {
+                    // File doesn't exist, which is fine for new files
+                }
+
+                // Commit the file
+                const commitData = {
+                    message: commitMessage,
+                    content: btoa(unescape(encodeURIComponent(content))), // Base64 encode with UTF-8 support
+                    branch: 'main'
+                };
+
+                if (sha) {
+                    commitData.sha = sha; // Include SHA if updating existing file
+                }
+
+                const response = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}/contents/${filePath}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${config.token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(commitData)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    updateStatus(statusElementId,
+                        `✅ File committed successfully! <a href="${result.content.html_url}" target="_blank">View on GitHub</a>`,
+                        'success'
+                    );
+                    return result;
+                } else {
+                    const error = await response.json();
+                    updateStatus(statusElementId,
+                        `❌ Commit failed: ${error.message || response.statusText}`,
+                        'error'
+                    );
+                    return null;
+                }
+            } catch (error) {
+                updateStatus(statusElementId, `❌ Error: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        async function createPullRequest(title, body, statusElementId) {
+            const config = getGitHubConfig();
+
+            updateStatus(statusElementId, '🔄 Creating pull request...', 'info');
+
+            try {
+                const prData = {
+                    title: title,
+                    body: body,
+                    head: 'main',
+                    base: 'main'
+                };
+
+                const response = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}/pulls`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `token ${config.token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(prData)
+                });
+
+                if (response.ok) {
+                    const pr = await response.json();
+                    updateStatus(statusElementId,
+                        `✅ Pull request created! <a href="${pr.html_url}" target="_blank">View PR #${pr.number}</a>`,
+                        'success'
+                    );
+                } else if (response.status === 422) {
+                    // PR might already exist or no changes to create PR
+                    updateStatus(statusElementId,
+                        '⚠️ Pull request could not be created. Changes may already be on main branch or PR already exists.',
+                        'info'
+                    );
+                } else {
+                    const error = await response.json();
+                    updateStatus(statusElementId,
+                        `❌ PR creation failed: ${error.message || response.statusText}`,
+                        'error'
+                    );
+                }
+            } catch (error) {
+                updateStatus(statusElementId, `❌ Error: ${error.message}`, 'error');
+            }
+        }        function generateNamespaceYAML(event) {
             event.preventDefault();
-            
+
             const team = document.getElementById('ns-team').value;
             const env = document.getElementById('ns-env').value;
             const email = document.getElementById('ns-email').value;
@@ -1009,7 +1334,7 @@ cat << 'EOF' > templates/helpers/self-service-ui.html
             const cpuLimit = cpu * 2;
             const memoryLimit = memory * 2;
             const date = new Date().toISOString().split('T')[0];
-            
+
             const yaml = `# Kubernetes Namespace Request
 # Team: ${team}
 # Environment: ${env}
@@ -1058,19 +1383,26 @@ spec:
       cpu: 100m
       memory: 128Mi
     type: Container`;
-            
+
             document.getElementById('ns-yaml').textContent = yaml;
             document.getElementById('ns-output').style.display = 'block';
             document.getElementById('ns-env-path').textContent = env;
             document.getElementById('ns-team-path').textContent = team;
-            
+
+            // Store YAML for GitHub integration
+            currentNamespaceYAML = yaml;
+            currentNamespaceFilePath = `namespaces/${env}/${team}-namespace.yaml`;
+
+            // Update button states
+            updateCommitButtonStates();
+
             // Scroll to output
             document.getElementById('ns-output').scrollIntoView({ behavior: 'smooth' });
         }
 
         function generateStorageYAML(event) {
             event.preventDefault();
-            
+
             const team = document.getElementById('st-team').value;
             const env = document.getElementById('st-env').value;
             const name = document.getElementById('st-name').value;
@@ -1078,7 +1410,7 @@ spec:
             const region = document.getElementById('st-region').value;
             const sku = document.getElementById('st-sku').value;
             const date = new Date().toISOString().split('T')[0];
-            
+
             const yaml = `# Azure Storage Account Request
 # Team: ${team}
 # Environment: ${env}
@@ -1123,11 +1455,18 @@ spec:
     purpose: "${purpose}"
     managed-by: platform-team
     created-via: self-service`;
-            
+
             document.getElementById('st-yaml').textContent = yaml;
             document.getElementById('st-output').style.display = 'block';
             document.getElementById('st-name-path').textContent = name;
-            
+
+            // Store YAML for GitHub integration
+            currentStorageYAML = yaml;
+            currentStorageFilePath = `azure-resources/storage-accounts/${name}.yaml`;
+
+            // Update button states
+            updateCommitButtonStates();
+
             // Scroll to output
             document.getElementById('st-output').scrollIntoView({ behavior: 'smooth' });
         }
@@ -1142,6 +1481,127 @@ spec:
                 }, 2000);
             });
         }
+
+        // GitHub Integration Functions
+        async function commitNamespaceToGithub() {
+            if (!currentNamespaceYAML) {
+                updateStatus('ns-commit-status', '❌ No YAML to commit. Generate YAML first.', 'error');
+                return;
+            }
+
+            const team = document.getElementById('ns-team').value;
+            const env = document.getElementById('ns-env').value;
+            const email = document.getElementById('ns-email').value;
+            const purpose = document.getElementById('ns-purpose').value;
+
+            const commitMessage = `Request namespace for ${team} in ${env} environment
+
+Requested by: ${email}
+Purpose: ${purpose}
+Generated via: Self-Service Portal`;
+
+            await commitFileToGitHub(currentNamespaceFilePath, currentNamespaceYAML, commitMessage, 'ns-commit-status');
+        }
+
+        async function createNamespacePR() {
+            if (!currentNamespaceYAML) {
+                updateStatus('ns-commit-status', '❌ No YAML to create PR with. Generate YAML first.', 'error');
+                return;
+            }
+
+            const team = document.getElementById('ns-team').value;
+            const env = document.getElementById('ns-env').value;
+            const email = document.getElementById('ns-email').value;
+            const purpose = document.getElementById('ns-purpose').value;
+
+            const title = `Request namespace: devops-${team}-${env}`;
+            const body = `## Namespace Request
+
+**Team:** ${team}
+**Environment:** ${env}
+**Contact:** ${email}
+**Purpose:** ${purpose}
+
+### Resources Requested
+- CPU: ${document.getElementById('ns-cpu').value} cores
+- Memory: ${document.getElementById('ns-memory').value} GB
+
+### Generated Resources
+- Namespace: \`devops-${team}-${env}\`
+- ResourceQuota: CPU and memory limits
+- LimitRange: Default container limits
+
+This request was generated using the Self-Service Portal.
+
+/cc @platform-team`;
+
+            await createPullRequest(title, body, 'ns-commit-status');
+        }
+
+        async function commitStorageToGithub() {
+            if (!currentStorageYAML) {
+                updateStatus('st-commit-status', '❌ No YAML to commit. Generate YAML first.', 'error');
+                return;
+            }
+
+            const team = document.getElementById('st-team').value;
+            const env = document.getElementById('st-env').value;
+            const name = document.getElementById('st-name').value;
+            const purpose = document.getElementById('st-purpose').value;
+
+            const commitMessage = `Request Azure storage account ${name}
+
+Team: ${team}
+Environment: ${env}
+Purpose: ${purpose}
+Generated via: Self-Service Portal`;
+
+            await commitFileToGitHub(currentStorageFilePath, currentStorageYAML, commitMessage, 'st-commit-status');
+        }
+
+        async function createStoragePR() {
+            if (!currentStorageYAML) {
+                updateStatus('st-commit-status', '❌ No YAML to create PR with. Generate YAML first.', 'error');
+                return;
+            }
+
+            const team = document.getElementById('st-team').value;
+            const env = document.getElementById('st-env').value;
+            const name = document.getElementById('st-name').value;
+            const purpose = document.getElementById('st-purpose').value;
+            const region = document.getElementById('st-region').value;
+            const sku = document.getElementById('st-sku').value;
+
+            const title = `Request Azure storage account: ${name}`;
+            const body = `## Azure Storage Request
+
+**Team:** ${team}
+**Environment:** ${env}
+**Storage Account:** ${name}
+**Purpose:** ${purpose}
+
+### Configuration
+- Region: ${region}
+- SKU: ${sku}
+- TLS Version: 1.2 minimum
+- HTTPS Only: Yes
+- Public Blob Access: Disabled
+
+### Generated Resources
+- Resource Group: \`${team}-${env}-storage-rg\`
+- Storage Account: \`${name}\`
+
+This request was generated using the Self-Service Portal.
+
+/cc @platform-team`;
+
+            await createPullRequest(title, body, 'st-commit-status');
+        }
+
+        // Initialize button states on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCommitButtonStates();
+        });
     </script>
 </body>
 </html>
@@ -1248,6 +1708,76 @@ kubectl get ingress self-service-ui -n default
 echo "Open your browser to: http://selfservice.127.0.0.1.nip.io"
 ```
 
+### Configure GitHub Integration (Option 1: Auto-Commit)
+
+The web UI now includes **automatic GitHub integration** that can commit files and create PRs directly from the browser. This eliminates the manual copy-paste workflow!
+
+#### Step 1: Create a GitHub Personal Access Token
+
+1. **Go to GitHub Settings**: https://github.com/settings/tokens
+2. **Click "Generate new token (classic)"**
+3. **Configure the token**:
+   - Name: `Platform Self-Service Portal`
+   - Expiration: `30 days` (or as per your security policy)
+   - Scopes: Select **`repo`** (Full control of private repositories)
+4. **Generate and copy the token** (starts with `ghp_`)
+
+⚠️ **Security Note**: Store this token securely and never share it. For production use, consider using GitHub Apps instead of personal tokens.
+
+#### Step 2: Configure the Portal
+
+1. **Open the web UI**: http://selfservice.127.0.0.1.nip.io
+2. **Fill in the GitHub Integration Setup section**:
+   - **GitHub Username**: Your GitHub username (e.g., `your-username`)
+   - **Repository Name**: Your platform-self-service repository name (e.g., `platform-self-service`)
+   - **Personal Access Token**: The token you created (paste the full `ghp_...` token)
+3. **Click "Test Connection"** to verify the setup
+
+✅ **Expected Result**: "Connected to your-username/platform-self-service (main branch)"
+
+#### Step 3: Test Auto-Commit Workflow
+
+1. **Fill out a namespace request form**:
+   - Team Name: `autotest`
+   - Environment: `dev`
+   - Contact Email: `autotest@workshop.local`
+   - Purpose: `Testing automatic GitHub integration`
+   - CPU Cores: `2`
+   - Memory: `4 GB`
+
+2. **Click "Generate YAML"** - The YAML will be displayed
+
+3. **Click "📝 Commit to GitHub"** - This will:
+   - Create/update the file `namespaces/dev/autotest-namespace.yaml`
+   - Commit directly to the main branch
+   - Show a success message with link to view on GitHub
+
+4. **Verify the commit**:
+   ```bash
+   cd ~/platform-self-service
+   git pull origin main
+   cat namespaces/dev/autotest-namespace.yaml
+   ```
+
+#### Step 4: Test Pull Request Creation
+
+For a more controlled workflow, you can create PRs instead of direct commits:
+
+1. **Generate YAML** as before
+2. **Click "🔀 Create Pull Request"** instead of commit
+3. **Review the PR** on GitHub with detailed description and context
+4. **Merge the PR** after review to deploy the resources
+
+#### Benefits of Auto-Commit Integration
+
+✅ **No manual copy-paste**: Eliminates human errors in YAML handling
+✅ **Immediate feedback**: See results instantly with links to GitHub
+✅ **Proper commit messages**: Structured, informative commit messages
+✅ **PR automation**: Rich PR descriptions with all context
+✅ **Audit trail**: Every request tracked in Git history
+✅ **Workshop-friendly**: Works entirely in the browser
+✅ **No infrastructure**: Client-side integration with GitHub API
+
 ### ✅ Verification Steps - Part 3
 
 ```bash
@@ -1265,16 +1795,26 @@ curl -I http://selfservice.127.0.0.1.nip.io
 # Commit the web UI file
 cd ~/platform-self-service
 git add templates/helpers/self-service-ui.html
-git commit -m "Add simple web UI for self-service portal"
+git commit -m "Add simple web UI with GitHub integration for self-service portal"
 git push origin main
 ```
 
 **Expected Output:**
-- Web UI HTML file created
+- Web UI HTML file created with GitHub integration
 - nginx pod running in default namespace
 - Service and Ingress configured
 - UI accessible at http://selfservice.127.0.0.1.nip.io
-- Beautiful form interface for requesting resources
+- Beautiful form interface with auto-commit capabilities
+- GitHub configuration section at the top of the UI
+
+**GitHub Integration Test:**
+```bash
+# After configuring GitHub integration in the UI and testing auto-commit:
+cd ~/platform-self-service
+git pull origin main
+ls -la namespaces/dev/  # Should show autotest-namespace.yaml if you tested
+git log --oneline -5    # Should show commits from the web UI
+```
 
 ## Part 4: Testing the Self-Service Workflow
 
@@ -1333,11 +1873,11 @@ kubectl get limitrange -n devops-testteam-dev
    ```bash
    cd ~/platform-self-service
    mkdir -p namespaces/dev
-   
+
    # Paste the copied YAML into a new file
    nano namespaces/dev/webteam-namespace.yaml
    # (or use your preferred editor)
-   
+
    # Commit and push
    git add namespaces/dev/webteam-namespace.yaml
    git commit -m "Request namespace for webteam dev environment"
@@ -1349,7 +1889,7 @@ kubectl get limitrange -n devops-testteam-dev
    # If you have ArgoCD ApplicationSet from LAB02, it will auto-sync
    # Otherwise, manually sync:
    argocd app sync dev-namespaces
-   
+
    # Verify namespace creation
    kubectl get namespace devops-webteam-dev
    kubectl get resourcequota -n devops-webteam-dev
@@ -1373,10 +1913,10 @@ Let's test requesting Azure storage using the web UI:
    ```bash
    cd ~/platform-self-service
    mkdir -p azure-resources/storage-accounts
-   
+
    # Save the generated YAML to the file
    nano azure-resources/storage-accounts/testteamstorage001.yaml
-   
+
    # Commit and push
    git add azure-resources/storage-accounts/testteamstorage001.yaml
    git commit -m "Request Azure storage account for testteam"
@@ -1387,10 +1927,10 @@ Let's test requesting Azure storage using the web UI:
    ```bash
    # Sync ArgoCD application
    argocd app sync azure-storage-accounts
-   
+
    # Watch resources being created
    kubectl get resourcegroup,storageaccount --watch
-   
+
    # Verify storage account (this may take a few minutes)
    kubectl get storageaccount -n default
    kubectl describe storageaccount testteamstorage001
@@ -1529,15 +2069,17 @@ You now have a lightweight, reliable self-service platform where:
 
 ### Comparison: Simple vs Complex Portals
 
-**Simple Approach (LAB04A Updated)**:
+**Simple Approach (LAB04A with GitHub Integration)**:
 - ✅ Quick to set up (minutes, not hours)
 - ✅ Minimal dependencies (nginx, bash, git)
 - ✅ Easy to customize and extend
 - ✅ Reliable in workshop/local environments
 - ✅ Low resource requirements
 - ✅ GitOps workflow maintained
-- ⚠️ Manual PR creation step
-- ⚠️ No built-in resource catalog
+- ✅ **Auto-commit and PR creation** (NEW!)
+- ✅ **No manual copy-paste** (NEW!)
+- ✅ **Rich commit messages and PR descriptions** (NEW!)
+- ⚠️ Simple resource catalog (not comprehensive like Backstage)
 
 **Complex Portal (e.g., Backstage)**:
 - ✅ Rich UI with many features
@@ -1572,13 +2114,15 @@ You now have a lightweight, reliable self-service platform where:
 To make this approach production-ready, you would:
 
 1. **Authentication**: Add authentication to the web UI (OAuth, OIDC)
-2. **RBAC**: Implement role-based access control for Git repository
-3. **Validation**: Add admission controllers to validate generated YAML
-4. **Automation**: Create GitHub Actions to automate PR creation from forms
-5. **Approvals**: Configure branch protection and CODEOWNERS for reviews
-6. **Monitoring**: Add metrics for resource requests and usage
-7. **Documentation**: Create comprehensive guides for developers
-8. **Templates**: Expand template library for all common resources
+2. **Token Security**: Replace personal tokens with GitHub Apps or organization tokens
+3. **RBAC**: Implement role-based access control for Git repository
+4. **Validation**: Add admission controllers to validate generated YAML
+5. **Branch Protection**: Use feature branches instead of direct commits to main
+6. **Approvals**: Configure branch protection and CODEOWNERS for reviews
+7. **Monitoring**: Add metrics for resource requests and usage
+8. **Documentation**: Create comprehensive guides for developers
+9. **Templates**: Expand template library for all common resources
+10. **Rate Limiting**: Implement API rate limiting and error handling
 
 ## Cleanup (Optional)
 
@@ -1611,7 +2155,7 @@ Congratulations! You've completed the Platform Engineering Workshop!
 
 Across all labs, you've built a complete Internal Developer Platform with:
 
-**LAB01**: 
+**LAB01**:
 - ✅ Local Kubernetes cluster (Kind)
 - ✅ GitOps with ArgoCD
 
@@ -1689,9 +2233,10 @@ In this lab, you:
 1. ✅ Created reusable YAML templates for common resources
 2. ✅ Built interactive command-line helper scripts
 3. ✅ Deployed a simple, beautiful web UI for self-service
-4. ✅ Tested complete self-service workflow
-5. ✅ Maintained GitOps principles with simple tools
-6. ✅ Learned practical alternatives to complex developer portals
+4. ✅ **Added automatic GitHub integration with one-click commits and PR creation**
+5. ✅ Tested complete self-service workflow with zero manual copy-paste
+6. ✅ Maintained GitOps principles with simple tools
+7. ✅ Learned practical alternatives to complex developer portals
 
 ### Key Takeaways
 
@@ -1702,6 +2247,8 @@ In this lab, you:
 5. **Developer Experience Matters**: Even simple interfaces dramatically improve adoption
 6. **Start Simple, Evolve**: Begin with simple approaches and add complexity as needed
 7. **Reliability Wins**: Tools that work reliably are better than feature-rich but problematic ones
+8. **API Integration is Accessible**: Modern web APIs make powerful automation achievable with simple tools
+9. **Progressive Enhancement**: You can start manual and add automation incrementally
 
 ### Advantages of This Approach
 
@@ -1738,7 +2285,7 @@ In this lab, you:
 
 ---
 
-**Congratulations on completing LAB04A!** 
+**Congratulations on completing LAB04A!**
 
 You've built a practical, workshop-friendly self-service platform with:
 - ✅ Simple, reliable tools that work everywhere
