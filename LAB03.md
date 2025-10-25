@@ -831,23 +831,31 @@ Before finishing this lab, verify everything is working:
 # Check ArgoCD application is healthy
 argocd app get azure-resources
 
-# Verify Azure resources exist in Kubernetes
-kubectl get resourcegroup,storageaccount
+# Verify Azure resources exist in Kubernetes (all namespaces)
+kubectl get resourcegroup,storageaccount --all-namespaces
 
 # Verify resources exist in Azure
 az group list --output table | grep workshop
-az storage account list --resource-group workshop-rg --output table
+az storage account list --output table | grep workshop
 
 # Check ASO is running well
 kubectl get pods -n azureserviceoperator-system
+
+# Verify the expanded ArgoCD project permissions
+argocd proj get azure-resources
+
+# If you created the frontend team resources, verify them:
+kubectl get resourcegroup,storageaccount -n devops-frontend-dev 2>/dev/null || echo "Frontend team resources not deployed"
 ```
 
 **Expected State:**
 - ✅ ArgoCD application shows "Healthy" and "Synced"
-- ✅ Resource Group visible in both Kubernetes and Azure
-- ✅ Storage Account visible in both Kubernetes and Azure
+- ✅ ArgoCD project supports all ASO resource types and devops-* namespaces
+- ✅ Resource Groups visible in both Kubernetes and Azure (in default and/or devops namespaces)
+- ✅ Storage Accounts visible in both Kubernetes and Azure
 - ✅ ASO pod running without errors
-- ✅ GitHub repository contains all resource definitions
+- ✅ GitHub repository contains resource definitions for multiple namespaces
+- ✅ Resources can be deployed to namespaces created in LAB02 (devops-frontend-dev, devops-backend-dev, etc.)
 
 ### 🤔 Final Reflection Questions
 
@@ -863,18 +871,20 @@ Take a moment to reflect on the entire lab:
 
 5. **Production Readiness**: What additional components would you need for a production-ready setup (monitoring, security, cost management, etc.)?
 
-6. **Kubernetes as Control Plane**: We used Kubernetes as a control plane for Azure resources. What are the pros and cons of this approach?
+6. **Multi-Tenant Architecture**: With the updated ArgoCD project supporting devops-* namespaces, how does this enable teams from LAB02 to manage their own Azure resources? What isolation and governance benefits does this provide?
+
+7. **Kubernetes as Control Plane**: We used Kubernetes as a control plane for Azure resources. What are the pros and cons of this approach?
 
 ## Cleanup (Optional)
 
 If you want to clean up all resources created in this lab:
 
 ```bash
-# Delete the ArgoCD application (this will remove Azure resources)
+# Delete the ArgoCD application (this will remove Azure resources from all namespaces)
 argocd app delete azure-resources --cascade
 
-# Wait for Azure resources to be deleted
-kubectl get resourcegroup,storageaccount --watch
+# Wait for Azure resources to be deleted (check all namespaces)
+kubectl get resourcegroup,storageaccount --all-namespaces --watch
 
 # Delete the ArgoCD project
 kubectl delete appproject azure-resources -n argocd
