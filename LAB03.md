@@ -170,6 +170,12 @@ Take a moment to think about what you've set up:
 
 ### Install ASO using Helm
 
+Azure Service Operator has a dependecy on Cert Manager. Install cert-manager first.
+
+```bash
+kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v1.18.2/cert-manager.yaml
+```
+
 ```bash
 # Add the ASO Helm repository
 helm repo add aso2 https://raw.githubusercontent.com/Azure/azure-service-operator/main/v2/charts
@@ -178,16 +184,10 @@ helm repo add aso2 https://raw.githubusercontent.com/Azure/azure-service-operato
 helm repo update
 
 # Install Azure Service Operator
-helm install aso2 aso2/azure-service-operator \
-  --create-namespace \
-  --namespace azureserviceoperator-system \
-  --set azureSubscriptionID=$SUBSCRIPTION_ID \
-  --set azureTenantID="YOUR_TENANT_ID" \
-  --set azureClientID="YOUR_CLIENT_ID" \
-  --set azureClientSecret="YOUR_CLIENT_SECRET"
-
-# Replace YOUR_TENANT_ID, YOUR_CLIENT_ID, and YOUR_CLIENT_SECRET
-# with the values from the service principal creation step
+$ helm upgrade --install aso2 aso2/azure-service-operator \
+    --create-namespace \
+    --namespace=azureserviceoperator-system \
+    --set crdPattern='resources.azure.com/*;storage.azure.com/*;keyvault.azure.com/*;managedidentity.azure.com/*'
 ```
 
 ### Verify ASO Installation
