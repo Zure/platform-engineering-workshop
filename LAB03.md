@@ -371,16 +371,62 @@ spec:
     managed-by: azure-service-operator
 EOF
 
+# Create additional examples for team-specific namespaces (created in LAB02)
+# These show how teams can deploy Azure resources in their own namespaces
+cat << 'EOF' > resource-groups/frontend-team-rg.yaml
+apiVersion: resources.azure.com/v1api20200601
+kind: ResourceGroup
+metadata:
+  name: frontend-team-rg
+  namespace: devops-frontend-dev
+spec:
+  location: eastus
+  tags:
+    environment: dev
+    team: frontend
+    managed-by: azure-service-operator
+    workshop: platform-engineering
+EOF
+
+cat << 'EOF' > storage-accounts/frontend-team-storage.yaml
+apiVersion: storage.azure.com/v1api20230101
+kind: StorageAccount
+metadata:
+  name: frontendstorageuniqueid
+  namespace: devops-frontend-dev
+spec:
+  location: eastus
+  kind: StorageV2
+  sku:
+    name: Standard_LRS
+  owner:
+    name: frontend-team-rg
+  properties:
+    accessTier: Hot
+    allowBlobPublicAccess: false
+    minimumTlsVersion: TLS1_2
+  tags:
+    environment: dev
+    team: frontend
+    managed-by: azure-service-operator
+EOF
+
 # Commit and push to GitHub
-git add azure-resources/
-git commit -m "Add Resource Group and Storage Account definitions for Azure"
+git add .
+git commit -m "Add Resource Group and Storage Account definitions
+
+- Default namespace resources for shared infrastructure
+- Team-specific resources in devops namespaces from LAB02
+- Demonstrates multi-tenant Azure resource management"
 git push origin main
 ```
 
 **Important Notes:**
 - Storage account names must be globally unique across all of Azure
 - Use only lowercase letters and numbers, no hyphens or special characters
-- Replace `uniqueid` in the storage account name with your initials + random numbers (e.g., `workshopstoragejd12345`)
+- Replace `uniqueid` in the storage account name with your initials + random numbers (e.g., `workshopstoragejd12345`, `frontendstorageab67890`)
+- Team-specific resources are deployed in their dedicated namespaces (e.g., `devops-frontend-dev` from LAB02)
+- This enables multi-tenant Azure resource management where teams can manage their own cloud resources
 
 ### ✅ Verification Steps - Part 3
 
@@ -465,18 +511,52 @@ spec:
     server: https://kubernetes.default.svc
   - namespace: azureserviceoperator-system
     server: https://kubernetes.default.svc
+  - namespace: 'devops-*'
+    server: https://kubernetes.default.svc
 
-  # Allowed Kubernetes resources
+  # Allowed Kubernetes resources - supporting all ASO resource types
   clusterResourceWhitelist:
   - group: 'resources.azure.com'
     kind: '*'
   - group: 'storage.azure.com'
+    kind: '*'
+  - group: 'keyvault.azure.com'
+    kind: '*'
+  - group: 'managedidentity.azure.com'
+    kind: '*'
+  - group: 'compute.azure.com'
+    kind: '*'
+  - group: 'network.azure.com'
+    kind: '*'
+  - group: 'sql.azure.com'
+    kind: '*'
+  - group: 'web.azure.com'
+    kind: '*'
+  - group: 'cache.azure.com'
+    kind: '*'
+  - group: 'containerservice.azure.com'
     kind: '*'
 
   namespaceResourceWhitelist:
   - group: 'resources.azure.com'
     kind: '*'
   - group: 'storage.azure.com'
+    kind: '*'
+  - group: 'keyvault.azure.com'
+    kind: '*'
+  - group: 'managedidentity.azure.com'
+    kind: '*'
+  - group: 'compute.azure.com'
+    kind: '*'
+  - group: 'network.azure.com'
+    kind: '*'
+  - group: 'sql.azure.com'
+    kind: '*'
+  - group: 'web.azure.com'
+    kind: '*'
+  - group: 'cache.azure.com'
+    kind: '*'
+  - group: 'containerservice.azure.com'
     kind: '*'
 EOF
 
