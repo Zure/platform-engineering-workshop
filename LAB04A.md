@@ -174,17 +174,17 @@ Now install Backstage using the Helm chart:
 
 ```bash
 # Install Backstage
-helm upgrade -i backstage backstage/backstage --namespace backstage
+helm upgrade -i backstage backstage/backstage --namespace backstage --create-namespace
 
 # Wait for Backstage to be ready (this may take 3-5 minutes)
 echo "Waiting for Backstage to be ready..."
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=backstage -n backstage --timeout=600s
 ```
 
-**Note**: The Helm chart installs Backstage with default configuration. For production use, you would customize the installation with a `values.yaml` file to configure things like:
+**Note**: The Helm chart installs Backstage with default configuration. For this workshop, we'll use the default setup and configure additional features (like GitHub integration and software templates) in Part 3. For production use, you would customize the installation with a `values.yaml` file to configure things like:
 - GitHub integration
 - Authentication providers
-- Database backend
+- Database backend (PostgreSQL instead of SQLite)
 - Custom plugins
 
 ### Create Ingress for External Access
@@ -231,7 +231,7 @@ kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=50
 kubectl get svc -n backstage
 kubectl get ingress -n backstage
 
-# Test Backstage is responding
+# Test Backstage is responding (may return 302 redirect or 200 OK)
 curl -I http://backstage.${YOUR_IP}.nip.io
 
 # Open Backstage in browser
@@ -242,13 +242,14 @@ echo "Open Backstage at: http://backstage.${YOUR_IP}.nip.io"
 - Backstage pod showing 1/1 READY
 - Service `backstage` available on port 7007
 - Ingress configured with your IP address
-- HTTP response (200 or 302) from Backstage URL
-- Backstage UI loads in browser
+- HTTP response (200 OK or 302 redirect) from Backstage URL
+- Backstage UI loads in browser showing the default home page
 
 **Troubleshooting Tips:**
 - If the pod doesn't start, check logs: `kubectl logs -n backstage -l app.kubernetes.io/name=backstage`
 - If ingress doesn't work, verify NGINX ingress is running: `kubectl get pods -n ingress-nginx`
 - If you get DNS errors, verify your IP is correct: `echo $YOUR_IP`
+- The default installation uses SQLite in-memory database and guest authentication
 
 ## Part 3: Creating Software Templates for Self-Service
 
@@ -836,8 +837,10 @@ kubectl rollout restart deployment/backstage -n backstage
 
 #### Pull Request Creation Fails
 
+**Note**: The default Helm installation doesn't include GitHub integration. This section applies to Part 3 when you configure software templates.
+
 ```bash
-# Verify GitHub token has correct permissions (if configured)
+# Verify GitHub token has correct permissions (applies to Part 3 configuration)
 curl -H "Authorization: token $GITHUB_TOKEN" \
   https://api.github.com/user/repos | jq '.[].full_name' | grep platform-self-service
 
