@@ -401,21 +401,21 @@ kubectl set volume deployment/backstage \
 
 ### Create Namespace Request Template
 
-This template will create a PR in your platform-self-service repo with a new namespace definition:
+For this workshop, we'll create a simplified template that shows developers what YAML would be created. In a production setup, you would add the GitHub integration to create PRs automatically.
 
 ```bash
-# Create namespace request template
+# Create a simplified namespace request template
 cat << 'EOF' > /tmp/namespace-template.yaml
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
   name: namespace-request
   title: Request Kubernetes Namespace
-  description: Request a new Kubernetes namespace with resource quotas via GitOps
+  description: Request a new Kubernetes namespace with resource quotas
   tags:
     - kubernetes
     - namespace
-    - gitops
+    - self-service
 spec:
   owner: platform-team
   type: resource
@@ -479,108 +479,99 @@ spec:
           enum: ["2Gi", "4Gi", "8Gi", "16Gi"]
 
   steps:
-    - id: fetch-base
-      name: Fetch Base Template
-      action: fetch:template
+    - id: log
+      name: Log Request
+      action: debug:log
       input:
-        url: ./skeleton
-        values:
-          teamName: ${{ parameters.teamName }}
-          environment: ${{ parameters.environment }}
-          contactEmail: ${{ parameters.contactEmail }}
-          purpose: ${{ parameters.purpose }}
-          cpuRequest: ${{ parameters.cpuRequest }}
-          memoryRequest: ${{ parameters.memoryRequest }}
-          namespaceName: devops-${{ parameters.teamName }}-${{ parameters.environment }}
-    
-    - id: publish
-      name: Create Pull Request
-      action: publish:github:pull-request
-      input:
-        repoUrl: github.com?owner=${{ secrets.GITHUB_USERNAME }}&repo=platform-self-service
-        branchName: request-${{ parameters.teamName }}-${{ parameters.environment }}-namespace
-        title: 'Request namespace for ${{ parameters.teamName }} (${{ parameters.environment }})'
-        description: |
-          ## Namespace Request
-          
-          **Team**: ${{ parameters.teamName }}
-          **Environment**: ${{ parameters.environment }}
-          **Contact**: ${{ parameters.contactEmail }}
-          **Purpose**: ${{ parameters.purpose }}
-          
-          ### Resources Requested
-          - CPU: ${{ parameters.cpuRequest }} cores
-          - Memory: ${{ parameters.memoryRequest }}
-          
-          This PR was automatically created via Backstage.
-        targetPath: namespaces/${{ parameters.environment }}
-        
+        message: |
+          Namespace request created:
+          Team: ${{ parameters.teamName }}
+          Environment: ${{ parameters.environment }}
+          Namespace: devops-${{ parameters.teamName }}-${{ parameters.environment }}
+  
   output:
-    links:
-      - title: View Pull Request
-        url: ${{ steps.publish.output.remoteUrl }}
-      - title: Open in ArgoCD
-        url: http://argocd.${{ secrets.MY_IP }}.nip.io
+    text:
+      - title: Namespace YAML Generated
+        content: |
+          ## Namespace Request for ${{ parameters.teamName }}
+          
+          ### Generated YAML
+          
+          Copy this YAML and create a PR in your platform-self-service repository:
+          
+          **File**: `namespaces/${{ parameters.environment }}/${{ parameters.teamName }}-namespace.yaml`
+          
+          ```yaml
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: devops-${{ parameters.teamName }}-${{ parameters.environment }}
+            labels:
+              team: ${{ parameters.teamName }}
+              environment: ${{ parameters.environment }}
+              managed-by: platform-team
+              created-via: backstage
+            annotations:
+              team.contact: "${{ parameters.contactEmail }}"
+              purpose: "${{ parameters.purpose }}"
+          ---
+          apiVersion: v1
+          kind: ResourceQuota
+          metadata:
+            name: ${{ parameters.teamName }}-${{ parameters.environment }}-quota
+            namespace: devops-${{ parameters.teamName }}-${{ parameters.environment }}
+          spec:
+            hard:
+              requests.cpu: "${{ parameters.cpuRequest }}"
+              requests.memory: ${{ parameters.memoryRequest }}
+              limits.cpu: "${{ parameters.cpuRequest * 2 }}"
+              limits.memory: "${{ parameters.memoryRequest | replace('Gi', '') | int * 2 }}Gi"
+              persistentvolumeclaims: "5"
+              services: "10"
+          ---
+          apiVersion: v1
+          kind: LimitRange
+          metadata:
+            name: ${{ parameters.teamName }}-${{ parameters.environment }}-limits
+            namespace: devops-${{ parameters.teamName }}-${{ parameters.environment }}
+          spec:
+            limits:
+            - default:
+                cpu: 500m
+                memory: 512Mi
+              defaultRequest:
+                cpu: 100m
+                memory: 128Mi
+              type: Container
+          ```
+          
+          ### Next Steps
+          
+          1. Copy the YAML above
+          2. Create a new branch in your platform-self-service repo
+          3. Add the file to `namespaces/${{ parameters.environment }}/`
+          4. Create a Pull Request
+          5. After merge, ArgoCD will automatically sync the namespace
+          
+          **Repository**: https://github.com/${{ secrets.GITHUB_USERNAME }}/platform-self-service
 EOF
 
-# Create the skeleton directory for the template
-cat << 'EOF' > /tmp/namespace-skeleton.yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: ${{ values.namespaceName }}
-  labels:
-    team: ${{ values.teamName }}
-    environment: ${{ values.environment }}
-    managed-by: platform-team
-    created-via: backstage
-  annotations:
-    team.contact: "${{ values.contactEmail }}"
-    purpose: "${{ values.purpose }}"
----
-apiVersion: v1
-kind: ResourceQuota
-metadata:
-  name: ${{ values.teamName }}-${{ values.environment }}-quota
-  namespace: ${{ values.namespaceName }}
-spec:
-  hard:
-    requests.cpu: "${{ values.cpuRequest }}"
-    requests.memory: ${{ values.memoryRequest }}
-    limits.cpu: "${{ values.cpuRequest | int * 2 }}"
-    limits.memory: "${{ values.memoryRequest | replace('Gi', '') | int * 2 }}Gi"
-    persistentvolumeclaims: "5"
-    services: "10"
----
-apiVersion: v1
-kind: LimitRange
-metadata:
-  name: ${{ values.teamName }}-${{ values.environment }}-limits
-  namespace: ${{ values.namespaceName }}
-spec:
-  limits:
-  - default:
-      cpu: 500m
-      memory: 512Mi
-    defaultRequest:
-      cpu: 100m
-      memory: 128Mi
-    type: Container
-EOF
-
-# Create ConfigMaps for templates
+# Create ConfigMap for the template
 kubectl create configmap namespace-template \
   --from-file=template.yaml=/tmp/namespace-template.yaml \
-  -n backstage
-
-kubectl create configmap namespace-skeleton \
-  --from-file=namespace.yaml=/tmp/namespace-skeleton.yaml \
-  -n backstage
+  -n backstage \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
+
+
+**Note**: This template uses `debug:log` action which is available in standard Backstage. For production, you would:
+- Add the `@backstage/plugin-scaffolder-backend-module-github` plugin
+- Configure GitHub integration with tokens
+- Use `publish:github:pull-request` action to create PRs automatically
 
 ### Create Azure Storage Account Request Template
 
-This template creates a PR for Azure Storage Account resources:
+Similar to the namespace template, this shows the YAML that would be created:
 
 ```bash
 # Create Azure storage request template
@@ -590,11 +581,11 @@ kind: Template
 metadata:
   name: azure-storage-request
   title: Request Azure Storage Account
-  description: Request an Azure Storage Account via GitOps
+  description: Request an Azure Storage Account for your team
   tags:
     - azure
     - storage
-    - gitops
+    - self-service
 spec:
   owner: platform-team
   type: resource
@@ -621,7 +612,7 @@ spec:
         storageAccountName:
           title: Storage Account Name
           type: string
-          description: Globally unique name (3-24 chars, lowercase, no hyphens)
+          description: Globally unique name (3-24 chars, lowercase alphanumeric only)
           pattern: '^[a-z0-9]{3,24}$'
           ui:help: 'Example: myteamstorage001'
         
@@ -646,121 +637,108 @@ spec:
           enum:
             - Standard_LRS
             - Standard_GRS
-            - Premium_LRS
           enumNames:
             - 'Standard Locally Redundant'
             - 'Standard Geo-Redundant'
-            - 'Premium Locally Redundant'
 
   steps:
-    - id: fetch-base
-      name: Fetch Base Template
-      action: fetch:template
+    - id: log
+      name: Log Request
+      action: debug:log
       input:
-        url: ./skeleton
-        values:
-          teamName: ${{ parameters.teamName }}
-          environment: ${{ parameters.environment }}
-          storageAccountName: ${{ parameters.storageAccountName }}
-          purpose: ${{ parameters.purpose }}
-          location: ${{ parameters.location }}
-          sku: ${{ parameters.sku }}
-          resourceGroupName: ${{ parameters.teamName }}-${{ parameters.environment }}-rg
-    
-    - id: publish
-      name: Create Pull Request
-      action: publish:github:pull-request
-      input:
-        repoUrl: github.com?owner=${{ secrets.GITHUB_USERNAME }}&repo=platform-self-service
-        branchName: request-${{ parameters.teamName }}-storage-${{ parameters.storageAccountName }}
-        title: 'Request Azure Storage: ${{ parameters.storageAccountName }}'
-        description: |
-          ## Azure Storage Account Request
-          
-          **Team**: ${{ parameters.teamName }}
-          **Environment**: ${{ parameters.environment }}
-          **Storage Account**: ${{ parameters.storageAccountName }}
-          **Purpose**: ${{ parameters.purpose }}
-          
-          ### Configuration
-          - Region: ${{ parameters.location }}
-          - SKU: ${{ parameters.sku }}
-          
-          This PR was automatically created via Backstage.
-        targetPath: azure-resources/storage-accounts
-        
+        message: |
+          Azure Storage request created:
+          Team: ${{ parameters.teamName }}
+          Storage Account: ${{ parameters.storageAccountName }}
+          Region: ${{ parameters.location }}
+  
   output:
-    links:
-      - title: View Pull Request
-        url: ${{ steps.publish.output.remoteUrl }}
-      - title: Open in ArgoCD
-        url: http://argocd.${{ secrets.MY_IP }}.nip.io
+    text:
+      - title: Azure Storage YAML Generated
+        content: |
+          ## Azure Storage Request for ${{ parameters.teamName }}
+          
+          ### Generated YAML
+          
+          Copy this YAML and create a PR in your platform-self-service repository:
+          
+          **File**: `azure-resources/storage-accounts/${{ parameters.teamName }}-${{ parameters.storageAccountName }}.yaml`
+          
+          ```yaml
+          # Resource Group
+          apiVersion: resources.azure.com/v1api20200601
+          kind: ResourceGroup
+          metadata:
+            name: ${{ parameters.teamName }}-${{ parameters.environment }}-rg
+            namespace: default
+          spec:
+            location: ${{ parameters.location }}
+            tags:
+              team: ${{ parameters.teamName }}
+              environment: ${{ parameters.environment }}
+              managed-by: platform-team
+              created-via: backstage
+          ---
+          # Storage Account
+          apiVersion: storage.azure.com/v1api20230101
+          kind: StorageAccount
+          metadata:
+            name: ${{ parameters.storageAccountName }}
+            namespace: default
+          spec:
+            location: ${{ parameters.location }}
+            kind: StorageV2
+            sku:
+              name: ${{ parameters.sku }}
+            owner:
+              name: ${{ parameters.teamName }}-${{ parameters.environment }}-rg
+            accessTier: Hot
+            tags:
+              team: ${{ parameters.teamName }}
+              environment: ${{ parameters.environment }}
+              purpose: "${{ parameters.purpose }}"
+              managed-by: platform-team
+              created-via: backstage
+          ```
+          
+          ### Next Steps
+          
+          1. Copy the YAML above
+          2. Create a new branch in your platform-self-service repo
+          3. Add the file to `azure-resources/storage-accounts/`
+          4. Create a Pull Request
+          5. After merge, ArgoCD will sync and ASO will create the Azure resources
+          
+          **Note**: Storage account names must be globally unique across Azure!
 EOF
 
-# Create skeleton for Azure storage template
-cat << 'EOF' > /tmp/storage-skeleton.yaml
----
-# First, ensure resource group exists
-apiVersion: resources.azure.com/v1api20200601
-kind: ResourceGroup
-metadata:
-  name: ${{ values.resourceGroupName }}
-  namespace: default
-spec:
-  location: ${{ values.location }}
-  tags:
-    team: ${{ values.teamName }}
-    environment: ${{ values.environment }}
-    managed-by: platform-team
-    created-via: backstage
----
-# Storage Account
-apiVersion: storage.azure.com/v1api20230101
-kind: StorageAccount
-metadata:
-  name: ${{ values.storageAccountName }}
-  namespace: default
-spec:
-  location: ${{ values.location }}
-  kind: StorageV2
-  sku:
-    name: ${{ values.sku }}
-  owner:
-    name: ${{ values.resourceGroupName }}
-  accessTier: Hot
-  tags:
-    team: ${{ values.teamName }}
-    environment: ${{ values.environment }}
-    purpose: "${{ values.purpose }}"
-    managed-by: platform-team
-    created-via: backstage
-EOF
-
-# Create ConfigMaps for storage template
+# Create ConfigMap for the storage template
 kubectl create configmap storage-template \
   --from-file=template.yaml=/tmp/storage-template.yaml \
-  -n backstage
-
-kubectl create configmap storage-skeleton \
-  --from-file=storage.yaml=/tmp/storage-skeleton.yaml \
-  -n backstage
+  -n backstage \
+  --dry-run=client -o yaml | kubectl apply -f -
 ```
 
 ### Register Templates in Backstage
 
-Update Backstage configuration to include the templates:
+Update the Backstage app-config to load the templates:
 
 ```bash
-# Add template locations to app-config
-cat << EOF >> /tmp/backstage-app-config.yaml
-
+# Create updated app-config with template locations
+cat << EOF > /tmp/backstage-catalog.yaml
+# Catalog with template locations
 catalog:
   locations:
+    - type: file
+      target: /app/examples/entities.yaml
     - type: file
       target: /app/templates/namespace-template.yaml
     - type: file
       target: /app/templates/storage-template.yaml
 EOF
+
+# Update Backstage deployment to mount templates
+# First, create a combined app-config
 
 # Update ConfigMap
 kubectl create configmap backstage-app-config \
