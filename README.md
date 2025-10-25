@@ -12,7 +12,7 @@ Workshop for Platform Engineering in a day
 - GitOps
 - Kubernetes
 - argoCD
-- backstage
+- self-service tools and developer portals
 - Product mindset
 - Building an Internal Developer Platform
 
@@ -47,9 +47,9 @@ Workshop for Platform Engineering in a day
 
 ### 15:15 - 16:30 - [LAB04A: Advanced Platform Concepts - User Interfaces](LAB04A.md)
 - Providing an interface for your Internal Developer Platform
-- Deploy Backstage as a developer portal
-- Integrate backstage with your platform
-- Requesting resources through backstage
+- Simple, reliable self-service tools (Web UI and CLI)
+- YAML templates for standardized resource requests
+- Workshop-friendly alternatives to complex developer portals
 
 ### 15:15 - 16:30 - [LAB04B: Advanced Platform Concepts - Abstractions](LAB04B.md)
 - Abstract Azure resources away in App Concepts
