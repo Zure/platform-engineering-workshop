@@ -362,10 +362,7 @@ spec:
     name: Standard_LRS
   owner:
     name: workshop-rg
-  properties:
-    accessTier: Hot
-    allowBlobPublicAccess: false
-    minimumTlsVersion: TLS1_2
+  accessTier: Hot
   tags:
     environment: workshop
     managed-by: azure-service-operator
@@ -380,7 +377,7 @@ metadata:
   name: frontend-team-rg
   namespace: devops-frontend-dev
 spec:
-  location: eastus
+  location: swedencentral
   tags:
     environment: dev
     team: frontend
@@ -395,16 +392,13 @@ metadata:
   name: frontendstorageuniqueid
   namespace: devops-frontend-dev
 spec:
-  location: eastus
+  location: swedencentral
   kind: StorageV2
   sku:
     name: Standard_LRS
   owner:
     name: frontend-team-rg
-  properties:
-    accessTier: Hot
-    allowBlobPublicAccess: false
-    minimumTlsVersion: TLS1_2
+  accessTier: Hot
   tags:
     environment: dev
     team: frontend
