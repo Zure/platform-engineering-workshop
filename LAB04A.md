@@ -225,9 +225,6 @@ spec:
   owner:
     name: {{TEAM_NAME}}-{{ENVIRONMENT}}-storage-rg
   accessTier: Hot
-  minimumTlsVersion: TLS1_2
-  supportsHttpsTrafficOnly: true
-  allowBlobPublicAccess: false
   tags:
     team: {{TEAM_NAME}}
     environment: {{ENVIRONMENT}}
@@ -561,9 +558,6 @@ spec:
   owner:
     name: ${TEAM_NAME}-${ENVIRONMENT}-storage-rg
   accessTier: Hot
-  minimumTlsVersion: TLS1_2
-  supportsHttpsTrafficOnly: true
-  allowBlobPublicAccess: false
   tags:
     team: ${TEAM_NAME}
     environment: ${ENVIRONMENT}
