@@ -1,571 +1,376 @@
-# LAB04A: Advanced Platform Concepts - User Interfaces
+# LAB04A: Self-Service Platform UI with Backstage
 
-Welcome to LAB04A! In this lab, you'll enhance your platform by adding a developer portal using Backstage. By the end of this lab, you'll have:
+Welcome to LAB04A! In this lab, you'll add a developer portal using Backstage to provide a user-friendly interface for your platform. By the end of this lab, you'll have:
 
-- Backstage deployed as a developer portal in your Kubernetes cluster
-- Backstage integrated with your Kubernetes cluster and ArgoCD
-- Software templates for self-service resource requests
-- A complete developer experience for requesting and managing platform resources
-- Understanding of how to provide user-friendly interfaces for Internal Developer Platforms
+- Backstage deployed on your Kind cluster
+- Software templates for requesting namespaces and Azure resources
+- Integration with your platform-self-service repository from LAB02
+- A complete self-service workflow where ArgoCD syncs requested resources
 
 ## Prerequisites
 
 Before starting, ensure you have completed:
-- ✅ **LAB01**: Kind cluster with NGINX ingress and ArgoCD
-- ✅ **LAB02**: Multi-tenant ArgoCD setup with self-service workflows
-- ✅ **LAB03**: Azure Service Operator (optional, but recommended for full experience)
+- ✅ **LAB01**: Kind cluster with NGINX ingress and ArgoCD installed
+- ✅ **LAB02**: Platform-self-service repository and ArgoCD ApplicationSets
+- ✅ **LAB03**: Azure Service Operator installed (for Azure resource templates)
 
-**Additional Requirements for this lab:**
+**Additional Requirements:**
 - ✅ **Helm 3**: For deploying Backstage
-- ✅ **GitHub Account**: For Backstage GitHub integration (optional but recommended)
-- ✅ **8GB+ RAM**: Backstage is resource-intensive in local environments
+- ✅ **GitHub Account**: Your platform-self-service repository from LAB02
+- ✅ **Node.js 18+** (optional): For local Backstage development
 
 ## Overview
 
-In this lab, we'll deploy **Backstage**, an open-source developer portal created by Spotify. Backstage provides:
+In previous labs, you created a GitOps-based self-service platform where teams request resources through Git Pull Requests. While powerful, this approach requires developers to:
+- Understand Git workflows
+- Write YAML manifests correctly
+- Wait for PR reviews and merges
 
-- **Service Catalog**: Centralized view of all services, APIs, and resources
-- **Software Templates**: Self-service scaffolding for creating new projects
-- **TechDocs**: Documentation as code, integrated with your services
-- **Kubernetes Plugin**: View and manage Kubernetes resources
-- **ArgoCD Plugin**: Monitor GitOps deployments
-- **Extensible Platform**: Plugin architecture for adding custom functionality
+In this lab, we'll add **Backstage** as a user-friendly interface that:
+- Provides forms instead of YAML editing
+- Automatically creates Pull Requests in your platform-self-service repo
+- Shows the status of requested resources
+- Makes self-service accessible to all developers
 
 ### What is Backstage?
 
-Backstage is an open platform for building developer portals. It helps organizations:
-- Provide a single pane of glass for developers to access all platform capabilities
-- Enable self-service through software templates and golden paths
-- Improve developer productivity by reducing context switching
-- Standardize development practices across teams
-- Maintain a service catalog that reflects your infrastructure
+Backstage is an open-source developer portal created by Spotify. For our platform, it provides:
+- **Software Templates**: Forms that generate resource requests (namespaces, Azure resources)
+- **Service Catalog**: View all registered services and resources
+- **Kubernetes Plugin**: See cluster resources and their status
+- **GitHub Integration**: Create PRs automatically from templates
+
+### Lab Architecture
+
+```
+Developer → Backstage UI → GitHub PR → ArgoCD → Kubernetes/Azure
+             (Forms)      (platform-self-service repo)  (Sync)
+```
 
 ### Lab Flow
 
-In this lab, we'll:
-1. Understand Backstage architecture and components
-2. Prepare the environment for Backstage deployment
-3. Deploy Backstage using Helm with built-in storage
-4. Configure Backstage with Kubernetes and ArgoCD plugins
-5. Access Backstage through ingress
-6. Create software templates for requesting resources
-7. Test the complete self-service workflow
+1. Deploy Backstage on Kind with minimal configuration
+2. Configure GitHub integration for your platform-self-service repo
+3. Create a software template for namespace requests
+4. Create a software template for Azure resource requests
+5. Test the complete workflow: Request → PR → Sync → Deployed
 
-This lab focuses on practical implementation while understanding the value Backstage brings to platform engineering.
+## Part 1: Preparing GitHub Integration
 
-## Part 1: Understanding Backstage Architecture
+Backstage's power comes from integrating with your Git repository to automate resource creation. Let's set up GitHub integration first.
 
-Before we start, let's understand what we're deploying:
+### Create a GitHub Personal Access Token
 
-### Backstage Components
+Backstage needs a GitHub token to create Pull Requests in your platform-self-service repository:
 
+1. Go to GitHub: https://github.com/settings/tokens
+2. Click "Generate new token" → "Generate new token (classic)"
+3. Token settings:
+   - **Note**: `Backstage Platform Workshop`
+   - **Expiration**: 7 days (or as needed for workshop)
+   - **Scopes**: Select these permissions:
+     - `repo` (all sub-scopes) - for creating PRs and accessing repositories
+     - `workflow` - for GitHub Actions
+     - `user:email` - for user information
+4. Click "Generate token"
+5. **Copy the token immediately** - you won't see it again!
+
+```bash
+# Save your token as an environment variable (replace with your actual token)
+export GITHUB_TOKEN="ghp_your_token_here"
+export GITHUB_USERNAME="your-github-username"
+
+# Verify the token works
+curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user | jq '.login'
+# Should output your GitHub username
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Backstage UI                       │
-│  (React frontend - user interface for developers)   │
-└──────────────────────┬──────────────────────────────┘
-                       │
-┌──────────────────────▼──────────────────────────────┐
-│              Backstage Backend                       │
-│  (Node.js API - handles catalog, templates, etc.)   │
-└──────────────────────┬──────────────────────────────┘
-                       │
-        ┌──────────────┼──────────────┐
-        ▼              ▼              ▼
-  ┌──────────┐  ┌──────────┐  ┌──────────────┐
-  │  SQLite  │  │Kubernetes│  │  GitHub API  │
-  │ Storage  │  │   API    │  │   (optional) │
-  └──────────┘  └──────────┘  └──────────────┘
+
+### Verify Your Platform-Self-Service Repository
+
+From LAB02, you should have a `platform-self-service` repository. Let's verify it exists and has the correct structure:
+
+```bash
+# Check if you can access your repository
+curl -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/$GITHUB_USERNAME/platform-self-service" | jq '.name'
+
+# Expected output: "platform-self-service"
 ```
 
-### Key Concepts
-
-- **Software Catalog**: YAML-based catalog of services, APIs, and resources
-- **Software Templates**: Cookiecutter-style templates for creating new resources
-- **Plugins**: Extend Backstage functionality (K8s, ArgoCD, Prometheus, etc.)
-- **TechDocs**: Documentation site generator built into the platform
+If you don't have this repository, revisit LAB02 to create it first.
 
 ### ✅ Verification Steps - Part 1
 
-Let's verify prerequisites before installation:
-
 ```bash
-# Verify Helm is installed
-helm version
+# Verify prerequisites
+helm version  # Should show v3.x
+kubectl cluster-info  # Should show cluster is running
+kubectl get pods -n argocd  # Should show ArgoCD pods running
 
-# Verify Kind cluster is running
-kubectl cluster-info
+# Verify GitHub token
+echo $GITHUB_TOKEN | head -c 10  # Should show ghp_xxxxx
+curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user | jq '.login'
 
-# Check available resources in cluster
-kubectl top nodes || echo "Metrics server not installed (optional)"
-
-# Verify ArgoCD is accessible
-kubectl get pods -n argocd
-
-# Check available storage classes (needed for PostgreSQL)
-kubectl get storageclass
+# Verify platform-self-service repo exists
+curl -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/$GITHUB_USERNAME/platform-self-service" | jq '.name'
 ```
 
 **Expected Output:**
-- Helm version 3.x installed
-- Kind cluster responding to kubectl commands
-- ArgoCD pods running in argocd namespace
-- At least one storage class available
+- Helm 3.x installed
+- Kind cluster running
+- ArgoCD operational
+- GitHub token valid and working
+- platform-self-service repository accessible
 
-### 🤔 Reflection Questions - Part 1
+## Part 2: Installing Backstage
 
-Before proceeding, think about:
-
-1. **Developer Experience**: What challenges do developers face when interacting with multiple platform tools (kubectl, ArgoCD, Azure Portal, etc.)? How does a unified portal help?
-
-2. **Self-Service**: In previous labs, teams requested resources through Pull Requests. What are the pros and cons compared to using a UI like Backstage?
-
-3. **Golden Paths**: Backstage promotes "golden paths" - standardized, best-practice ways to accomplish common tasks. Why is standardization important in platform engineering?
-
-4. **Catalog-Driven**: Backstage maintains a catalog of all services and resources. How does this help with discoverability and governance?
-
-5. **Adoption**: Introducing a new tool requires developer adoption. What features would make developers want to use Backstage over existing tools?
-
-## Part 2: Preparing for Backstage Deployment
+We'll deploy Backstage using a simplified approach suitable for the workshop environment.
 
 ### Create Namespace
 
-First, let's create a dedicated namespace for Backstage:
-
 ```bash
-# Create namespace for Backstage
+# Create dedicated namespace for Backstage
 kubectl create namespace backstage
 
-# Verify namespace was created
+# Verify namespace
 kubectl get namespace backstage
 ```
 
-### Understanding Backstage Storage
+### Get Your IP Address for Ingress
 
-Backstage needs persistent storage for its catalog data. The official Backstage Helm chart includes built-in support for:
-- **SQLite** (default, suitable for development/workshop environments)
-- **PostgreSQL** (recommended for production, can be configured externally)
-
-For this workshop, we'll use the default SQLite storage which is included in the Backstage Helm chart. This simplifies our setup while still demonstrating all key Backstage concepts.
-
-### ✅ Verification Steps - Part 2
-
-Verify the namespace is ready:
+Backstage needs to be accessible via ingress. First, determine your IP address:
 
 ```bash
-# Check namespace exists
-kubectl get namespace backstage
+# On Linux/macOS
+export MY_IP=$(hostname -I | awk '{print $1}')
 
-# Verify you can create resources in the namespace
-kubectl auth can-i create pods --namespace backstage
+# On macOS (alternative)
+export MY_IP=$(ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1)
+
+# Verify
+echo "Your IP: $MY_IP"
+echo "Backstage will be available at: http://backstage.$MY_IP.nip.io"
 ```
-
-**Expected Output:**
-- Backstage namespace showing Active status
-- Permission check returning "yes"
-
-### 🤔 Reflection Questions - Part 2
-
-Consider the deployment choices:
-
-1. **Storage Options**: We're using SQLite for this workshop. What are the trade-offs between SQLite and PostgreSQL for Backstage?
-
-2. **Persistence**: Even with SQLite, Backstage will need persistent storage. How does Kubernetes handle this with PersistentVolumes?
-
-3. **Production Considerations**: What would you change about this setup for a production environment?
-
-4. **Scalability**: SQLite is single-file based. How does this impact Backstage's ability to scale horizontally?
-
-5. **Backup Strategy**: How would you implement backups for Backstage data in a workshop environment vs production?
-
-## Part 3: Deploying Backstage with Helm
-
-### Add Backstage Helm Repository
-
-```bash
-# Add Backstage Helm repository
-helm repo add backstage https://backstage.github.io/charts
-helm repo update
-
-# Search for available Backstage charts
-helm search repo backstage
-```
-
-### Determine Your IP Address
-
-Before configuring Backstage, you need to know your machine's IP address for the nip.io domain:
-
-```bash
-# On macOS/Linux - find your IP
-ifconfig | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | head -1
-
-# Or use this simpler command
-hostname -I | awk '{print $1}'
-
-# On Windows (PowerShell)
-# (Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.InterfaceAlias -notlike "*Loopback*"}).IPAddress
-
-# Alternative: If you're on a local machine, you might use
-ip addr show | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | cut -d/ -f1 | head -1
-```
-
-**Note your IP address** - you'll use it as `YOUR_IP` in the following commands. For example, if your IP is `192.168.1.100`, you'll use `backstage.192.168.1.100.nip.io`.
 
 ### Create Backstage Configuration
 
-Let's create a custom values file for our Backstage deployment:
+Create a minimal Backstage configuration focused on our workshop needs:
 
 ```bash
-# Set your IP address (replace with your actual IP)
-export YOUR_IP="192.168.1.100"  # Replace with your actual IP from the command above
+# Create Backstage app-config (replace variables with your values)
+cat << EOF > /tmp/backstage-app-config.yaml
+app:
+  title: Platform Engineering Workshop
+  baseUrl: http://backstage.${MY_IP}.nip.io
 
-# Create values file for Backstage
-cat << EOF > /tmp/backstage-values.yaml
-backstage:
-  # Image configuration
-  image:
-    registry: ghcr.io
-    repository: backstage/backstage
-    tag: latest
-    pullPolicy: Always
+organization:
+  name: Workshop
 
-  # App configuration
-  appConfig:
-    app:
-      title: Platform Engineering Workshop
-      baseUrl: http://backstage.${YOUR_IP}.nip.io
-    
-    backend:
-      baseUrl: http://backstage.${YOUR_IP}.nip.io
-      listen:
-        port: 7007
-      cors:
-        origin: http://backstage.${YOUR_IP}.nip.io
-        methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
-        credentials: true
-      database:
-        client: better-sqlite3
-        connection: ':memory:'
-    
-    catalog:
-      import:
-        entityFilename: catalog-info.yaml
-      rules:
-        - allow: [Component, System, API, Resource, Location, Group, User]
-      locations:
-        # Example components
-        - type: url
-          target: https://github.com/backstage/backstage/blob/master/packages/catalog-model/examples/all.yaml
-    
-    kubernetes:
-      serviceLocatorMethod:
-        type: 'multiTenant'
-      clusterLocatorMethods:
-        - type: 'config'
-          clusters:
-            - url: https://kubernetes.default.svc
-              name: workshop-cluster
-              authProvider: 'serviceAccount'
-              skipTLSVerify: true
-              skipMetricsLookup: false
+backend:
+  baseUrl: http://backstage.${MY_IP}.nip.io
+  listen:
+    port: 7007
+  csp:
+    connect-src: ["'self'", 'http:', 'https:']
+  cors:
+    origin: http://backstage.${MY_IP}.nip.io
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
 
-  # Resources
-  resources:
-    requests:
-      memory: 512Mi
-      cpu: 250m
-    limits:
-      memory: 1Gi
-      cpu: 1000m
+integrations:
+  github:
+    - host: github.com
+      token: ${GITHUB_TOKEN}
 
-  # Container ports
-  containerPorts:
-    backend: 7007
+catalog:
+  import:
+    entityFilename: catalog-info.yaml
+    pullRequestBranchName: backstage-integration
+  rules:
+    - allow: [Component, System, API, Resource, Location, Template]
+  locations:
+    - type: file
+      target: /app/examples/entities.yaml
 
-# Ingress configuration
-ingress:
-  enabled: true
-  className: nginx
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-  host: backstage.${YOUR_IP}.nip.io
-  tls:
-    enabled: false
+scaffolder:
+  defaultAuthor:
+    name: Platform Team
+    email: platform@workshop.local
+  defaultCommitMessage: 'Requested via Backstage'
 
-# Service configuration
-service:
-  type: ClusterIP
-  ports:
-    backend: 7007
-    name: http
+auth:
+  providers:
+    guest: {}
 
-# ServiceAccount - needed for Kubernetes plugin
-serviceAccount:
-  create: true
-  automountServiceAccountToken: true
 EOF
+
+# Create a Kubernetes Secret with this configuration
+kubectl create secret generic backstage-secrets \
+  --from-literal=GITHUB_TOKEN="$GITHUB_TOKEN" \
+  -n backstage
+
+# Create ConfigMap for app-config
+kubectl create configmap backstage-app-config \
+  --from-file=app-config.yaml=/tmp/backstage-app-config.yaml \
+  -n backstage
 ```
 
-**Important**: Make sure to replace `YOUR_IP` with your actual IP address throughout the configuration. The examples use `192.168.1.100` - substitute your real IP.
+### Deploy Backstage
 
-### Install Backstage
+We'll deploy Backstage using a direct Kubernetes deployment for better control:
 
 ```bash
-# Install Backstage with custom values
-helm install backstage backstage/backstage \
-  --namespace backstage \
-  --values /tmp/backstage-values.yaml \
-  --wait \
-  --timeout 10m
-
-# Monitor the deployment
-kubectl get pods -n backstage --watch
-```
-
-**Note**: Backstage can take several minutes to start as it builds the catalog and loads plugins. Be patient!
-
-### Troubleshooting Installation Issues
-
-If Backstage fails to start, check:
-
-```bash
-# Check pod status and events
-kubectl get pods -n backstage
-kubectl describe pod -n backstage -l app.kubernetes.io/name=backstage
-
-# Check logs for errors
-kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=100
-
-# Common issues:
-# 1. Memory limits - Backstage needs at least 512Mi RAM
-# 2. Image pull issues - check image registry and tag
-# 3. Storage issues - verify PersistentVolume can be created
-```
-# 3. Image pull issues - check image registry and tag
-```
-
-### ✅ Verification Steps - Part 3
-
-Verify Backstage is running:
-
-```bash
-# Check all pods in backstage namespace
-kubectl get pods -n backstage
-
-# Verify Backstage pod is ready
-kubectl get pod -n backstage -l app.kubernetes.io/name=backstage
-
-# Check service is created
-kubectl get svc -n backstage -l app.kubernetes.io/name=backstage
-
-# Verify ingress is configured
-kubectl get ingress -n backstage
-
-# Test backend API is responding
-kubectl run curl-test --rm -it --restart=Never \
-  --image=curlimages/curl:latest \
-  --namespace backstage \
-  --command -- curl -s http://backstage-backstage:7007/api/catalog/entities | head -20
-```
-
-**Expected Output:**
-- Backstage pod showing 1/1 Ready
-- Service exposing port 7007
-- Ingress configured for backstage.YOUR_IP.nip.io (e.g., backstage.192.168.1.100.nip.io)
-- API responding with JSON catalog data
-
-### 🤔 Reflection Questions - Part 3
-
-Think about the deployment:
-
-1. **Resource Requirements**: Backstage requires significant resources (512Mi RAM minimum). How does this impact the design of your platform?
-
-2. **Configuration Management**: We stored configuration in app-config.yaml. In a production environment, how would you manage secrets and environment-specific config?
-
-3. **Plugin Architecture**: Backstage's power comes from plugins. How does the plugin system affect deployment and maintenance?
-
-4. **Startup Time**: Backstage takes several minutes to start. What does this mean for deployment strategies and high availability?
-
-5. **Version Management**: We used the "latest" tag. What are the implications for stability and reproducibility?
-
-## Part 4: Accessing Backstage
-
-### Access Through Ingress
-
-Now let's access Backstage through our NGINX ingress:
-
-```bash
-# Verify ingress is working
-kubectl get ingress -n backstage
-
-# Get the ingress URL (replace YOUR_IP with your actual IP)
-echo "Backstage URL: http://backstage.YOUR_IP.nip.io"
-
-# Test connectivity (replace YOUR_IP with your actual IP)
-curl -I http://backstage.YOUR_IP.nip.io
-
-# Open in browser (if running on your local machine)
-# Visit: http://backstage.YOUR_IP.nip.io (replace YOUR_IP with your actual IP)
-```
-
-### First-Time Setup
-
-When you first access Backstage:
-
-1. **Home Page**: You'll see the Backstage home page with navigation menu
-2. **Catalog**: Click "Catalog" to see example components
-3. **Create**: Click "Create" to see software templates
-4. **Explore**: Navigate through the UI to familiarize yourself
-
-### Configure Guest Access (Optional)
-
-For this workshop, we'll use guest authentication:
-
-```bash
-# Backstage is already configured with guest auth by default
-# All users will access as "Guest" with full permissions
-# In production, you would integrate with your identity provider (OAuth, SAML, etc.)
-```
-
-### ✅ Verification Steps - Part 4
-
-Verify you can access Backstage:
-
-```bash
-# Test the home page loads (replace YOUR_IP with your actual IP)
-curl -s http://backstage.YOUR_IP.nip.io | grep -i "backstage" || echo "Backstage not responding"
-
-# Test the API (replace YOUR_IP with your actual IP)
-curl -s http://backstage.YOUR_IP.nip.io/api/catalog/entities | jq '.[] | .metadata.name' | head -5
-
-# Check for any errors in logs
-kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=50 | grep -i error
-```
-
-**Expected Output:**
-- Home page HTML containing "Backstage"
-- API returning JSON with catalog entities
-- No critical errors in logs
-
-### 🤔 Reflection Questions - Part 4
-
-Consider the user experience:
-
-1. **Authentication**: We're using guest access. What authentication methods would you use in production, and why?
-
-2. **Navigation**: Explore the Backstage UI. How does the navigation compare to using kubectl or the ArgoCD UI directly?
-
-3. **Discoverability**: How does Backstage help developers discover what services and resources are available?
-
-4. **Context Switching**: Before Backstage, developers needed to use multiple tools. How does Backstage reduce context switching?
-
-5. **Customization**: The UI can be customized with themes and plugins. How would you decide what to show or hide for your organization?
-
-## Part 5: Configuring Kubernetes Plugin
-
-### Create Service Account for Backstage
-
-Backstage needs permissions to read Kubernetes resources:
-
-```bash
-# Create ClusterRole for Backstage to read K8s resources
-cat << 'EOF' > /tmp/backstage-k8s-rbac.yaml
+# Create Backstage deployment
+cat << EOF > /tmp/backstage-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backstage
+  namespace: backstage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backstage
+  template:
+    metadata:
+      labels:
+        app: backstage
+    spec:
+      serviceAccountName: backstage
+      containers:
+      - name: backstage
+        image: ghcr.io/backstage/backstage:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 7007
+        envFrom:
+        - secretRef:
+            name: backstage-secrets
+        volumeMounts:
+        - name: app-config
+          mountPath: /app/app-config.yaml
+          subPath: app-config.yaml
+          readOnly: true
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 7007
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: 7007
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: app-config
+        configMap:
+          name: backstage-app-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backstage
+  namespace: backstage
+spec:
+  selector:
+    app: backstage
+  ports:
+  - name: http
+    port: 7007
+    targetPort: 7007
+  type: ClusterIP
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: backstage-k8s
+  name: backstage
   namespace: backstage
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
-  name: backstage-k8s-reader
-rules:
-  - apiGroups:
-      - '*'
-    resources:
-      - pods
-      - configmaps
-      - services
-      - deployments
-      - replicasets
-      - horizontalpodautoscalers
-      - ingresses
-      - statefulsets
-      - daemonsets
-      - cronjobs
-      - jobs
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - batch
-    resources:
-      - jobs
-      - cronjobs
-    verbs:
-      - get
-      - list
-      - watch
-  - apiGroups:
-      - apps
-    resources:
-      - deployments
-      - daemonsets
-      - statefulsets
-      - replicasets
-    verbs:
-      - get
-      - list
-      - watch
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: backstage-k8s-reader
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: backstage-k8s-reader
-subjects:
-  - kind: ServiceAccount
-    name: backstage-k8s
-    namespace: backstage
+  name: backstage
+  namespace: backstage
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: backstage.${MY_IP}.nip.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: backstage
+            port:
+              number: 7007
 EOF
 
-# Apply the RBAC configuration
-kubectl apply -f /tmp/backstage-k8s-rbac.yaml
+# Apply the deployment
+kubectl apply -f /tmp/backstage-deployment.yaml
+
+# Wait for Backstage to be ready (this may take 3-5 minutes)
+echo "Waiting for Backstage to be ready..."
+kubectl wait --for=condition=ready pod -l app=backstage -n backstage --timeout=600s
 ```
 
-### Add Kubernetes Plugin to Catalog
-
-Let's register some Kubernetes resources in the Backstage catalog:
+### ✅ Verification Steps - Part 2
 
 ```bash
-# Create a catalog entry for our ArgoCD application
-cat << 'EOF' > /tmp/argocd-component.yaml
-apiVersion: backstage.io/v1alpha1
-kind: Component
-metadata:
-  name: argocd
-  description: GitOps Continuous Delivery tool
-  annotations:
-    backstage.io/kubernetes-id: argocd-server
-    backstage.io/kubernetes-namespace: argocd
-    backstage.io/kubernetes-label-selector: 'app.kubernetes.io/name=argocd-server'
-spec:
-  type: service
-  lifecycle: production
-  owner: platform-team
-  system: platform-infrastructure
----
+# Check Backstage pod is running
+kubectl get pods -n backstage
+kubectl logs -n backstage -l app=backstage --tail=50
+
+# Verify service and ingress
+kubectl get svc -n backstage
+kubectl get ingress -n backstage
+
+# Test Backstage is responding
+curl -I http://backstage.${MY_IP}.nip.io/healthcheck
+
+# Open Backstage in browser
+echo "Open Backstage at: http://backstage.${MY_IP}.nip.io"
+```
+
+**Expected Output:**
+- Backstage pod showing 1/1 READY
+- Ingress configured with your IP address
+- Healthcheck returns 200 OK
+- Backstage UI loads in browser
+
+## Part 3: Creating Software Templates for Self-Service
+
+Now we'll create software templates that generate Pull Requests in your platform-self-service repository. These templates will allow developers to request namespaces and Azure resources through a simple form.
+
+### Create Initial Catalog with Examples
+
+First, let's create a basic catalog file with example entities:
+
+```bash
+# Create example entities file that Backstage will load
+cat << 'EOF' > /tmp/entities.yaml
 apiVersion: backstage.io/v1alpha1
 kind: System
 metadata:
-  name: platform-infrastructure
-  description: Core platform infrastructure services
+  name: workshop-platform
+  description: Platform Engineering Workshop Infrastructure
 spec:
   owner: platform-team
 ---
@@ -579,620 +384,179 @@ spec:
   children: []
 EOF
 
-# Create a ConfigMap with this catalog entry
-kubectl create configmap backstage-catalog \
+# Create ConfigMap with entities
+kubectl create configmap backstage-examples \
+  --from-file=entities.yaml=/tmp/entities.yaml \
+  -n backstage
+
+# Update deployment to mount this ConfigMap
+kubectl set volume deployment/backstage \
   -n backstage \
-  --from-file=argocd-component.yaml=/tmp/argocd-component.yaml
-
-# Update Backstage to include this catalog location
-# Note: This requires restarting Backstage to pick up the changes
-kubectl rollout restart deployment -n backstage -l app.kubernetes.io/name=backstage
+  --add \
+  --name=examples \
+  --type=configmap \
+  --configmap-name=backstage-examples \
+  --mount-path=/app/examples
 ```
-
-### ✅ Verification Steps - Part 5
-
-Verify Kubernetes plugin is working:
-
-```bash
-# Check RBAC is configured
-kubectl get clusterrole backstage-k8s-reader
-kubectl get clusterrolebinding backstage-k8s-reader
-
-# Verify ConfigMap was created
-kubectl get configmap backstage-catalog -n backstage
-
-# Check Backstage pod restarted successfully
-kubectl get pods -n backstage -l app.kubernetes.io/name=backstage
-
-# Wait for pod to be ready
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=backstage -n backstage --timeout=300s
-
-# Access Backstage and check catalog
-# Visit: http://backstage.YOUR_IP.nip.io/catalog (replace YOUR_IP with your actual IP)
-```
-
-**Expected Output:**
-- ClusterRole and ClusterRoleBinding created
-- Backstage pod restarted successfully
-- In Backstage UI: ArgoCD component visible in catalog with Kubernetes tab showing pods
-
-### 🤔 Reflection Questions - Part 5
-
-Think about the integration:
-
-1. **RBAC Design**: We gave Backstage read-only access to many Kubernetes resources. What's the security principle behind read-only access? When might you need write access?
-
-2. **Service Account vs User Credentials**: Why use a Kubernetes ServiceAccount instead of user credentials for Backstage?
-
-3. **Catalog Annotations**: The catalog entry uses annotations like `backstage.io/kubernetes-id`. How do these annotations link catalog entries to real infrastructure?
-
-4. **Multi-Cluster**: Our setup uses a single cluster. How would you configure Backstage to show resources from multiple Kubernetes clusters?
-
-5. **Real-Time Updates**: How frequently does Backstage refresh Kubernetes data? What are the trade-offs of frequent vs infrequent updates?
-
-## Part 6: Integrating with ArgoCD
-
-### Install ArgoCD Plugin for Backstage
-
-Let's add ArgoCD visibility to our Backstage instance:
-
-```bash
-# Set your IP address (replace with your actual IP)
-export YOUR_IP="192.168.1.100"  # Replace with your actual IP
-
-# First, get the ArgoCD admin password
-ARGOCD_PASSWORD=$(kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d)
-
-# Login to ArgoCD CLI (replace YOUR_IP with your actual IP)
-argocd login argocd.${YOUR_IP}.nip.io --username admin --password $ARGOCD_PASSWORD --insecure
-
-# Create API token for Backstage
-ARGOCD_TOKEN=$(argocd account generate-token --account admin)
-
-# Create secret with ArgoCD token
-kubectl create secret generic argocd-credentials \
-  -n backstage \
-  --from-literal=token=$ARGOCD_TOKEN \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-echo "ArgoCD token created for Backstage"
-```
-
-### Configure ArgoCD Integration
-
-Update Backstage configuration to include ArgoCD:
-
-```bash
-# Set your IP address if not already set
-export YOUR_IP="192.168.1.100"  # Replace with your actual IP
-
-# Create updated values file with ArgoCD config
-cat << EOF > /tmp/backstage-values-argocd.yaml
-backstage:
-  image:
-    registry: ghcr.io
-    repository: backstage/backstage
-    tag: latest
-    pullPolicy: Always
-
-  extraEnvVars:
-    - name: ARGOCD_AUTH_TOKEN
-      valueFrom:
-        secretKeyRef:
-          name: argocd-credentials
-          key: token
-
-  appConfig:
-    app:
-      title: Platform Engineering Workshop
-      baseUrl: http://backstage.${YOUR_IP}.nip.io
-    
-    backend:
-      baseUrl: http://backstage.${YOUR_IP}.nip.io
-      listen:
-        port: 7007
-      cors:
-        origin: http://backstage.${YOUR_IP}.nip.io
-        methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
-        credentials: true
-      database:
-        client: better-sqlite3
-        connection: ':memory:'
-    
-    catalog:
-      import:
-        entityFilename: catalog-info.yaml
-      rules:
-        - allow: [Component, System, API, Resource, Location, Group, User]
-      locations:
-        - type: url
-          target: https://github.com/backstage/backstage/blob/master/packages/catalog-model/examples/all.yaml
-    
-    argocd:
-      username: admin
-      appLocatorMethods:
-        - type: 'config'
-          instances:
-            - name: workshop-argocd
-              url: http://argocd-server.argocd.svc.cluster.local
-              token: \${ARGOCD_AUTH_TOKEN}
-    
-    kubernetes:
-      serviceLocatorMethod:
-        type: 'multiTenant'
-      clusterLocatorMethods:
-        - type: 'config'
-          clusters:
-            - url: https://kubernetes.default.svc
-              name: workshop-cluster
-              authProvider: 'serviceAccount'
-              skipTLSVerify: true
-              skipMetricsLookup: false
-
-  resources:
-    requests:
-      memory: 512Mi
-      cpu: 250m
-    limits:
-      memory: 1Gi
-      cpu: 1000m
-
-  containerPorts:
-    backend: 7007
-
-ingress:
-  enabled: true
-  className: nginx
-  annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-  host: backstage.${YOUR_IP}.nip.io
-  tls:
-    enabled: false
-
-service:
-  type: ClusterIP
-  ports:
-    backend: 7007
-    name: http
-
-serviceAccount:
-  create: true
-  automountServiceAccountToken: true
-EOF
-
-# Upgrade Backstage with ArgoCD configuration
-helm upgrade backstage backstage/backstage \
-  --namespace backstage \
-  --values /tmp/backstage-values-argocd.yaml \
-  --wait \
-  --timeout 10m
-```
-
-### Add ArgoCD Applications to Catalog
-
-```bash
-# Create catalog entry with ArgoCD annotation
-cat << 'EOF' > /tmp/guestbook-component.yaml
-apiVersion: backstage.io/v1alpha1
-kind: Component
-metadata:
-  name: guestbook-app
-  description: Example guestbook application deployed via ArgoCD
-  annotations:
-    backstage.io/kubernetes-id: guestbook-ui
-    backstage.io/kubernetes-namespace: default
-    argocd/app-name: guestbook
-spec:
-  type: service
-  lifecycle: experimental
-  owner: platform-team
-  system: demo-applications
----
-apiVersion: backstage.io/v1alpha1
-kind: System
-metadata:
-  name: demo-applications
-  description: Demo applications for platform workshop
-spec:
-  owner: platform-team
-EOF
-
-# Update ConfigMap
-kubectl create configmap backstage-catalog \
-  -n backstage \
-  --from-file=argocd-component.yaml=/tmp/argocd-component.yaml \
-  --from-file=guestbook-component.yaml=/tmp/guestbook-component.yaml \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-# Restart Backstage to pick up changes
-kubectl rollout restart deployment -n backstage -l app.kubernetes.io/name=backstage
-```
-
-### ✅ Verification Steps - Part 6
-
-Verify ArgoCD integration:
-
-```bash
-# Check ArgoCD credentials secret exists
-kubectl get secret argocd-credentials -n backstage
-
-# Verify Backstage pod restarted successfully
-kubectl get pods -n backstage -l app.kubernetes.io/name=backstage
-
-# Wait for pod to be ready
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=backstage -n backstage --timeout=300s
-
-# Check Backstage can communicate with ArgoCD
-kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=100 | grep -i argocd
-
-# Access Backstage UI and check ArgoCD data
-# Visit: http://backstage.YOUR_IP.nip.io/catalog (replace YOUR_IP with your actual IP)
-# Select a component and look for ArgoCD tab
-```
-
-**Expected Output:**
-- ArgoCD credentials secret created
-- Backstage pod running successfully
-- In Backstage UI: Components showing ArgoCD deployment status
-- ArgoCD tab visible on component pages showing sync status
-
-### 🤔 Reflection Questions - Part 6
-
-Consider the integration:
-
-1. **Unified View**: How does seeing ArgoCD application status in Backstage improve the developer experience compared to switching between tools?
-
-2. **API Tokens**: We created an ArgoCD API token for Backstage. What are the security considerations? How would you rotate tokens?
-
-3. **Real-Time Sync**: ArgoCD application status is shown in Backstage. What happens when an application is out of sync? How would a developer see this?
-
-4. **GitOps Workflow**: With Backstage + ArgoCD integration, trace the complete workflow: Developer changes Git → ArgoCD syncs → Backstage shows status. Where could this workflow break?
-
-5. **Multiple ArgoCD Instances**: Our setup uses one ArgoCD instance. How would you configure Backstage to show applications from multiple ArgoCD instances across different clusters?
-
-## Part 7: Creating Software Templates
-
-Software Templates are Backstage's way of enabling self-service. Let's create a template for requesting a namespace:
 
 ### Create Namespace Request Template
 
+This template will create a PR in your platform-self-service repo with a new namespace definition:
+
 ```bash
-# Create a software template for namespace requests
+# Create namespace request template
 cat << 'EOF' > /tmp/namespace-template.yaml
 apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
   name: namespace-request
-  title: Request a Kubernetes Namespace
-  description: Request a new Kubernetes namespace with resource quotas
+  title: Request Kubernetes Namespace
+  description: Request a new Kubernetes namespace with resource quotas via GitOps
   tags:
     - kubernetes
     - namespace
-    - self-service
+    - gitops
 spec:
   owner: platform-team
   type: resource
   
   parameters:
-    - title: Namespace Information
+    - title: Namespace Details
       required:
-        - team_name
+        - teamName
         - environment
+        - contactEmail
       properties:
-        team_name:
+        teamName:
           title: Team Name
           type: string
-          description: Name of your team (lowercase, no spaces)
+          description: Your team name (lowercase, no spaces)
           pattern: '^[a-z0-9-]+$'
           ui:autofocus: true
-          ui:help: 'Example: frontend, backend, data-team'
+          ui:help: 'Example: frontend, backend, data'
         
         environment:
           title: Environment
           type: string
-          description: Which environment is this namespace for?
+          description: Environment for this namespace
           enum:
             - dev
             - staging
             - prod
           enumNames:
-            - 'Development'
-            - 'Staging'
-            - 'Production'
+            - Development
+            - Staging
+            - Production
         
-        contact_email:
+        contactEmail:
           title: Contact Email
           type: string
           format: email
-          description: Team contact email for notifications
+          description: Team contact email
         
         purpose:
           title: Purpose
           type: string
-          description: Brief description of what this namespace will be used for
+          description: What will this namespace be used for?
           ui:widget: textarea
           ui:options:
             rows: 3
     
     - title: Resource Quotas
-      required:
-        - cpu_request
-        - memory_request
       properties:
-        cpu_request:
-          title: CPU Request
+        cpuRequest:
+          title: CPU Cores
           type: string
-          description: Total CPU cores (e.g., "2" for 2 cores)
+          description: Number of CPU cores
           default: "2"
-          enum:
-            - "1"
-            - "2"
-            - "4"
-            - "8"
+          enum: ["1", "2", "4", "8"]
         
-        memory_request:
-          title: Memory Request
+        memoryRequest:
+          title: Memory
           type: string
-          description: Total memory
+          description: Memory allocation
           default: "4Gi"
-          enum:
-            - "2Gi"
-            - "4Gi"
-            - "8Gi"
-            - "16Gi"
+          enum: ["2Gi", "4Gi", "8Gi", "16Gi"]
 
   steps:
-    - id: log
-      name: Log Parameters
-      action: debug:log
+    - id: fetch-base
+      name: Fetch Base Template
+      action: fetch:template
       input:
-        message: |
-          Creating namespace: ${{ parameters.team_name }}-${{ parameters.environment }}
-          Contact: ${{ parameters.contact_email }}
-          Resources: CPU=${{ parameters.cpu_request }}, Memory=${{ parameters.memory_request }}
-  
-  output:
-    text:
-      - title: Namespace Details
-        content: |
-          ## Namespace Request Submitted
-          
-          Your namespace request has been created with the following details:
-          
-          - **Namespace Name**: `${{ parameters.team_name }}-${{ parameters.environment }}`
-          - **Environment**: ${{ parameters.environment }}
-          - **Contact**: ${{ parameters.contact_email }}
-          - **CPU Request**: ${{ parameters.cpu_request }}
-          - **Memory Request**: ${{ parameters.memory_request }}
-          
-          ### Next Steps
-          
-          In a real platform, this template would:
-          1. Create a Pull Request in your GitOps repository
-          2. Include the namespace YAML with your specifications
-          3. Trigger ArgoCD to apply the changes once approved
-          
-          For this workshop, you would manually create the namespace manifest in your platform-self-service repository.
-          
-          ### Manual Steps (Workshop Only)
-          
-          ```yaml
-          apiVersion: v1
-          kind: Namespace
-          metadata:
-            name: ${{ parameters.team_name }}-${{ parameters.environment }}
-            labels:
-              team: ${{ parameters.team_name }}
-              environment: ${{ parameters.environment }}
-              managed-by: platform-team
-            annotations:
-              team.contact: "${{ parameters.contact_email }}"
-              purpose: "${{ parameters.purpose }}"
-          ---
-          apiVersion: v1
-          kind: ResourceQuota
-          metadata:
-            name: ${{ parameters.team_name }}-${{ parameters.environment }}-quota
-            namespace: ${{ parameters.team_name }}-${{ parameters.environment }}
-          spec:
-            hard:
-              requests.cpu: "${{ parameters.cpu_request }}"
-              requests.memory: ${{ parameters.memory_request }}
-              limits.cpu: "${{ parameters.cpu_request * 2 }}"
-              limits.memory: "${{ parameters.memory_request * 2 }}"
-          ```
-EOF
-
-# Create ConfigMap with the template
-kubectl create configmap backstage-templates \
-  -n backstage \
-  --from-file=namespace-template.yaml=/tmp/namespace-template.yaml \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-# Register the template in Backstage catalog
-cat << 'EOF' > /tmp/template-location.yaml
-apiVersion: backstage.io/v1alpha1
-kind: Location
-metadata:
-  name: workshop-templates
-  description: Software templates for platform self-service
-spec:
-  type: url
-  targets:
-    - http://backstage-backstage.backstage.svc.cluster.local:7007/templates
-EOF
-
-kubectl create configmap backstage-locations \
-  -n backstage \
-  --from-file=template-location.yaml=/tmp/template-location.yaml \
-  --dry-run=client -o yaml | kubectl apply -f -
-```
-
-### Alternative: File-Based Template Registration
-
-For this workshop, let's use a simpler approach - placing templates directly:
-
-```bash
-# Create a simple example template that doesn't require GitHub integration
-cat << 'EOF' > /tmp/example-template.yaml
-apiVersion: scaffolder.backstage.io/v1beta3
-kind: Template
-metadata:
-  name: hello-world-template
-  title: Hello World Example
-  description: A simple example template to test Backstage software templates
-  tags:
-    - example
-    - getting-started
-spec:
-  owner: platform-team
-  type: service
-  
-  parameters:
-    - title: Basic Information
-      required:
-        - name
-      properties:
-        name:
-          title: Name
-          type: string
-          description: Give your resource a name
-          ui:autofocus: true
-
-  steps:
-    - id: log
-      name: Log Information
-      action: debug:log
+        url: ./skeleton
+        values:
+          teamName: ${{ parameters.teamName }}
+          environment: ${{ parameters.environment }}
+          contactEmail: ${{ parameters.contactEmail }}
+          purpose: ${{ parameters.purpose }}
+          cpuRequest: ${{ parameters.cpuRequest }}
+          memoryRequest: ${{ parameters.memoryRequest }}
+          namespaceName: devops-${{ parameters.teamName }}-${{ parameters.environment }}
+    
+    - id: publish
+      name: Create Pull Request
+      action: publish:github:pull-request
       input:
-        message: 'Hello, ${{ parameters.name }}! This is a test template.'
-
+        repoUrl: github.com?owner=${{ secrets.GITHUB_USERNAME }}&repo=platform-self-service
+        branchName: request-${{ parameters.teamName }}-${{ parameters.environment }}-namespace
+        title: 'Request namespace for ${{ parameters.teamName }} (${{ parameters.environment }})'
+        description: |
+          ## Namespace Request
+          
+          **Team**: ${{ parameters.teamName }}
+          **Environment**: ${{ parameters.environment }}
+          **Contact**: ${{ parameters.contactEmail }}
+          **Purpose**: ${{ parameters.purpose }}
+          
+          ### Resources Requested
+          - CPU: ${{ parameters.cpuRequest }} cores
+          - Memory: ${{ parameters.memoryRequest }}
+          
+          This PR was automatically created via Backstage.
+        targetPath: namespaces/${{ parameters.environment }}
+        
   output:
-    text:
-      - title: Success!
-        content: |
-          ## Template Executed Successfully
-          
-          Your input was: **${{ parameters.name }}**
-          
-          This is a demo template to show how Backstage Software Templates work.
-          
-          In a real scenario, this template would:
-          - Create a new repository
-          - Generate project files from a cookiecutter template  
-          - Register the new service in the catalog
-          - Set up CI/CD pipelines
-          - Create associated cloud resources
+    links:
+      - title: View Pull Request
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in ArgoCD
+        url: http://argocd.${{ secrets.MY_IP }}.nip.io
 EOF
-```
 
-**Note**: For fully functional templates that create resources, you would need:
-- GitHub integration (Personal Access Token)
-- GitHub Action to create repositories
-- Integration with your GitOps repository
-- Additional Backstage plugins
-
-For this workshop, we'll demonstrate the UI and concept, with manual steps for resource creation.
-
-### ✅ Verification Steps - Part 7
-
-Verify templates are available:
-
-```bash
-# Check ConfigMaps were created
-kubectl get configmap -n backstage | grep template
-
-# Restart Backstage to pick up templates
-kubectl rollout restart deployment -n backstage -l app.kubernetes.io/name=backstage
-
-# Wait for restart
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=backstage -n backstage --timeout=300s
-
-# Access Backstage and check templates
-# Visit: http://backstage.YOUR_IP.nip.io/create (replace YOUR_IP with your actual IP)
-# You should see your templates listed
-```
-
-**Expected Output:**
-- ConfigMaps created with template definitions
-- Backstage UI showing "Create" page with available templates
-- Templates can be opened and show form fields
-
-### 🤔 Reflection Questions - Part 7
-
-Think about self-service templates:
-
-1. **Golden Paths**: Software templates enforce "golden paths" - standardized ways to create resources. How does this help with governance and best practices?
-
-2. **Parameter Validation**: The template includes validation rules (regex patterns, enums). Why is validation at the UI level important?
-
-3. **Template Maintenance**: Who should own and maintain software templates? How do you ensure they stay up to date with platform changes?
-
-4. **Discoverability**: Templates are tagged and searchable. How does good template documentation impact adoption?
-
-5. **Abstraction Level**: Our template asks for "CPU Request" rather than detailed Kubernetes YAML. What's the right level of abstraction for your platform users?
-
-## Part 8: Testing the Complete Workflow
-
-### Exercise: Request a Namespace Through Backstage
-
-Let's walk through the complete self-service workflow:
-
-1. **Open Backstage**: Visit http://backstage.YOUR_IP.nip.io (replace YOUR_IP with your actual IP)
-
-2. **Browse Catalog**:
-   - Click "Catalog" in the left menu
-   - Explore the components registered
-   - Click on a component to see details, Kubernetes pods, etc.
-
-3. **Create New Resource**:
-   - Click "Create" in the left menu
-   - Find "Request a Kubernetes Namespace" template (if available)
-   - Or try the "Hello World Example" template
-   - Fill in the form with your values
-   - Submit the template
-
-4. **View Results**:
-   - Read the output showing what would be created
-   - In a full implementation, this would create a PR in GitHub
-
-### Manual Resource Creation (Following Template Output)
-
-Since we're in a workshop environment, let's manually create the resource that the template would generate:
-
-```bash
-# Based on your template input, create the namespace
-# Example: team=myteam, environment=dev
-cat << 'EOF' > /tmp/myteam-namespace.yaml
+# Create the skeleton directory for the template
+cat << 'EOF' > /tmp/namespace-skeleton.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: myteam-dev
+  name: ${{ values.namespaceName }}
   labels:
-    team: myteam
-    environment: dev
-    managed-by: backstage
+    team: ${{ values.teamName }}
+    environment: ${{ values.environment }}
+    managed-by: platform-team
+    created-via: backstage
   annotations:
-    team.contact: "myteam@company.com"
-    purpose: "Development environment for my team"
-    created-via: backstage-template
+    team.contact: "${{ values.contactEmail }}"
+    purpose: "${{ values.purpose }}"
 ---
 apiVersion: v1
 kind: ResourceQuota
 metadata:
-  name: myteam-dev-quota
-  namespace: myteam-dev
+  name: ${{ values.teamName }}-${{ values.environment }}-quota
+  namespace: ${{ values.namespaceName }}
 spec:
   hard:
-    requests.cpu: "2"
-    requests.memory: 4Gi
-    limits.cpu: "4"
-    limits.memory: 8Gi
+    requests.cpu: "${{ values.cpuRequest }}"
+    requests.memory: ${{ values.memoryRequest }}
+    limits.cpu: "${{ values.cpuRequest | int * 2 }}"
+    limits.memory: "${{ values.memoryRequest | replace('Gi', '') | int * 2 }}Gi"
+    persistentvolumeclaims: "5"
+    services: "10"
 ---
 apiVersion: v1
 kind: LimitRange
 metadata:
-  name: myteam-dev-limits
-  namespace: myteam-dev
+  name: ${{ values.teamName }}-${{ values.environment }}-limits
+  namespace: ${{ values.namespaceName }}
 spec:
   limits:
   - default:
@@ -1204,420 +568,571 @@ spec:
     type: Container
 EOF
 
-# Apply the namespace
-kubectl apply -f /tmp/myteam-namespace.yaml
+# Create ConfigMaps for templates
+kubectl create configmap namespace-template \
+  --from-file=template.yaml=/tmp/namespace-template.yaml \
+  -n backstage
 
-# Verify it was created
-kubectl get namespace myteam-dev
-kubectl describe namespace myteam-dev
-kubectl get resourcequota -n myteam-dev
+kubectl create configmap namespace-skeleton \
+  --from-file=namespace.yaml=/tmp/namespace-skeleton.yaml \
+  -n backstage
 ```
 
-### Register New Namespace in Backstage Catalog
+### Create Azure Storage Account Request Template
+
+This template creates a PR for Azure Storage Account resources:
 
 ```bash
-# Create catalog entry for the new namespace
-cat << 'EOF' > /tmp/myteam-catalog.yaml
-apiVersion: backstage.io/v1alpha1
-kind: Resource
+# Create Azure storage request template
+cat << 'EOF' > /tmp/storage-template.yaml
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
 metadata:
-  name: myteam-dev-namespace
-  description: Development namespace for MyTeam
-  annotations:
-    backstage.io/kubernetes-id: myteam-dev
-    backstage.io/kubernetes-namespace: myteam-dev
+  name: azure-storage-request
+  title: Request Azure Storage Account
+  description: Request an Azure Storage Account via GitOps
   tags:
-    - kubernetes
-    - namespace
-    - myteam
+    - azure
+    - storage
+    - gitops
 spec:
-  type: kubernetes-namespace
-  owner: myteam
-  system: myteam-system
----
-apiVersion: backstage.io/v1alpha1
-kind: System
-metadata:
-  name: myteam-system
-  description: MyTeam's applications and services
-spec:
-  owner: myteam
----
-apiVersion: backstage.io/v1alpha1
-kind: Group
-metadata:
-  name: myteam
-  description: My Application Team
-spec:
-  type: team
-  children: []
+  owner: platform-team
+  type: resource
+  
+  parameters:
+    - title: Storage Account Details
+      required:
+        - teamName
+        - environment
+        - storageAccountName
+      properties:
+        teamName:
+          title: Team Name
+          type: string
+          description: Your team name
+          pattern: '^[a-z0-9-]+$'
+          ui:autofocus: true
+        
+        environment:
+          title: Environment
+          type: string
+          enum: [dev, staging, prod]
+        
+        storageAccountName:
+          title: Storage Account Name
+          type: string
+          description: Globally unique name (3-24 chars, lowercase, no hyphens)
+          pattern: '^[a-z0-9]{3,24}$'
+          ui:help: 'Example: myteamstorage001'
+        
+        purpose:
+          title: Purpose
+          type: string
+          description: What will this storage be used for?
+          ui:widget: textarea
+    
+    - title: Configuration
+      properties:
+        location:
+          title: Azure Region
+          type: string
+          default: swedencentral
+          enum: [swedencentral, westeurope, northeurope]
+        
+        sku:
+          title: SKU/Performance Tier
+          type: string
+          default: Standard_LRS
+          enum:
+            - Standard_LRS
+            - Standard_GRS
+            - Premium_LRS
+          enumNames:
+            - 'Standard Locally Redundant'
+            - 'Standard Geo-Redundant'
+            - 'Premium Locally Redundant'
+
+  steps:
+    - id: fetch-base
+      name: Fetch Base Template
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          teamName: ${{ parameters.teamName }}
+          environment: ${{ parameters.environment }}
+          storageAccountName: ${{ parameters.storageAccountName }}
+          purpose: ${{ parameters.purpose }}
+          location: ${{ parameters.location }}
+          sku: ${{ parameters.sku }}
+          resourceGroupName: ${{ parameters.teamName }}-${{ parameters.environment }}-rg
+    
+    - id: publish
+      name: Create Pull Request
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=${{ secrets.GITHUB_USERNAME }}&repo=platform-self-service
+        branchName: request-${{ parameters.teamName }}-storage-${{ parameters.storageAccountName }}
+        title: 'Request Azure Storage: ${{ parameters.storageAccountName }}'
+        description: |
+          ## Azure Storage Account Request
+          
+          **Team**: ${{ parameters.teamName }}
+          **Environment**: ${{ parameters.environment }}
+          **Storage Account**: ${{ parameters.storageAccountName }}
+          **Purpose**: ${{ parameters.purpose }}
+          
+          ### Configuration
+          - Region: ${{ parameters.location }}
+          - SKU: ${{ parameters.sku }}
+          
+          This PR was automatically created via Backstage.
+        targetPath: azure-resources/storage-accounts
+        
+  output:
+    links:
+      - title: View Pull Request
+        url: ${{ steps.publish.output.remoteUrl }}
+      - title: Open in ArgoCD
+        url: http://argocd.${{ secrets.MY_IP }}.nip.io
 EOF
 
-# Add to catalog ConfigMap
-kubectl create configmap myteam-catalog \
-  -n backstage \
-  --from-file=myteam-catalog.yaml=/tmp/myteam-catalog.yaml
+# Create skeleton for Azure storage template
+cat << 'EOF' > /tmp/storage-skeleton.yaml
+---
+# First, ensure resource group exists
+apiVersion: resources.azure.com/v1api20200601
+kind: ResourceGroup
+metadata:
+  name: ${{ values.resourceGroupName }}
+  namespace: default
+spec:
+  location: ${{ values.location }}
+  tags:
+    team: ${{ values.teamName }}
+    environment: ${{ values.environment }}
+    managed-by: platform-team
+    created-via: backstage
+---
+# Storage Account
+apiVersion: storage.azure.com/v1api20230101
+kind: StorageAccount
+metadata:
+  name: ${{ values.storageAccountName }}
+  namespace: default
+spec:
+  location: ${{ values.location }}
+  kind: StorageV2
+  sku:
+    name: ${{ values.sku }}
+  owner:
+    name: ${{ values.resourceGroupName }}
+  accessTier: Hot
+  tags:
+    team: ${{ values.teamName }}
+    environment: ${{ values.environment }}
+    purpose: "${{ values.purpose }}"
+    managed-by: platform-team
+    created-via: backstage
+EOF
 
-# Note: Backstage needs to be configured to read from this ConfigMap
-# For this workshop, the namespace exists and can be viewed via Kubernetes plugin
+# Create ConfigMaps for storage template
+kubectl create configmap storage-template \
+  --from-file=template.yaml=/tmp/storage-template.yaml \
+  -n backstage
+
+kubectl create configmap storage-skeleton \
+  --from-file=storage.yaml=/tmp/storage-skeleton.yaml \
+  -n backstage
 ```
 
-### ✅ Verification Steps - Part 8
+### Register Templates in Backstage
 
-Verify the complete workflow:
+Update Backstage configuration to include the templates:
 
 ```bash
-# Check namespace was created
-kubectl get namespace myteam-dev
-kubectl get all -n myteam-dev
+# Add template locations to app-config
+cat << EOF >> /tmp/backstage-app-config.yaml
 
-# Verify resource quotas
-kubectl get resourcequota -n myteam-dev -o yaml
+catalog:
+  locations:
+    - type: file
+      target: /app/templates/namespace-template.yaml
+    - type: file
+      target: /app/templates/storage-template.yaml
+EOF
 
-# Check in Backstage
-# 1. Visit http://backstage.YOUR_IP.nip.io (replace YOUR_IP with your actual IP)
-# 2. Go to Catalog
-# 3. Search for "myteam"
-# 4. View resource details
+# Update ConfigMap
+kubectl create configmap backstage-app-config \
+  --from-file=app-config.yaml=/tmp/backstage-app-config.yaml \
+  -n backstage \
+  --dry-run=client -o yaml | kubectl apply -f -
 
-# Test deploying something in the new namespace
-kubectl run nginx --image=nginx -n myteam-dev
-kubectl get pods -n myteam-dev
+# Mount templates in deployment
+kubectl set volume deployment/backstage \
+  -n backstage \
+  --add \
+  --name=namespace-template \
+  --type=configmap \
+  --configmap-name=namespace-template \
+  --mount-path=/app/templates/namespace-template.yaml \
+  --sub-path=template.yaml
 
-# Clean up test pod
-kubectl delete pod nginx -n myteam-dev
+kubectl set volume deployment/backstage \
+  -n backstage \
+  --add \
+  --name=storage-template \
+  --type=configmap \
+  --configmap-name=storage-template \
+  --mount-path=/app/templates/storage-template.yaml \
+  --sub-path=template.yaml
+
+# Restart Backstage to pick up changes
+kubectl rollout restart deployment/backstage -n backstage
+
+# Wait for restart
+kubectl wait --for=condition=ready pod -l app=backstage -n backstage --timeout=300s
+```
+
+### ✅ Verification Steps - Part 3
+
+```bash
+# Check templates are loaded
+kubectl get configmaps -n backstage
+
+# Check Backstage logs for template registration
+kubectl logs -n backstage -l app=backstage --tail=100 | grep -i template
+
+# Access Backstage UI
+echo "Open Backstage at: http://backstage.${MY_IP}.nip.io"
+echo "Navigate to 'Create' to see your templates"
 ```
 
 **Expected Output:**
-- Namespace exists with correct labels and annotations
-- ResourceQuota and LimitRange applied
-- Can deploy workloads to the namespace
-- Resource limits enforced
+- ConfigMaps created for templates
+- Backstage logs show templates were loaded
+- Templates visible in Backstage UI under "Create" page
 
-### 🤔 Reflection Questions - Part 8
+## Part 4: Testing the Self-Service Workflow
 
-Reflect on the complete experience:
+Now let's test the complete workflow: Request resources via Backstage → PR created → ArgoCD syncs → Resources deployed.
 
-1. **User Experience**: Compare this workflow to previous labs where you manually created namespaces through Git. What are the pros and cons of each approach?
+### Test Namespace Request
 
-2. **Developer Empowerment**: How does a UI like Backstage enable developers who may not be familiar with Kubernetes YAML?
+1. **Open Backstage in your browser**:
+   ```bash
+   echo "Open: http://backstage.${MY_IP}.nip.io"
+   ```
 
-3. **Governance**: Even with a UI, the platform team still controls what can be created (through templates). How does this balance self-service with governance?
+2. **Navigate to Create page**:
+   - Click "Create" in the left sidebar
+   - Find "Request Kubernetes Namespace" template
+   - Click "Choose"
 
-4. **Approval Workflows**: Our template creates resources immediately (in theory). When would you want approval steps before resource creation?
+3. **Fill in the form**:
+   - Team Name: `testteam`
+   - Environment: `dev`
+   - Contact Email: `testteam@workshop.local`
+   - Purpose: `Testing Backstage self-service workflow`
+   - CPU Cores: `2`
+   - Memory: `4Gi`
 
-5. **Platform Evolution**: As your platform grows, what other templates would be valuable? (Hint: databases, message queues, CI/CD pipelines, monitoring dashboards)
+4. **Review and Create**:
+   - Click "Review"
+   - Click "Create"
+   - Backstage will create a Pull Request in your platform-self-service repository
 
-## Part 9: Advanced Backstage Features (Optional)
+5. **Check the Pull Request**:
+   ```bash
+   # View PRs in your repository
+   curl -H "Authorization: token $GITHUB_TOKEN" \
+     "https://api.github.com/repos/$GITHUB_USERNAME/platform-self-service/pulls" | \
+     jq '.[] | {title, number, state}'
+   ```
 
-If you have time, explore these additional Backstage capabilities:
+6. **Merge the Pull Request**:
+   - Open the PR link in your browser
+   - Review the changes (namespace YAML)
+   - Click "Merge pull request"
+   - Click "Confirm merge"
 
-### TechDocs
+7. **Watch ArgoCD Sync**:
+   ```bash
+   # ArgoCD will detect the merge and sync automatically (within 3 minutes)
+   # Or manually trigger sync:
+   argocd app sync dev-namespaces
+
+   # Wait for sync
+   argocd app wait dev-namespaces --timeout 300
+
+   # Verify namespace was created
+   kubectl get namespace devops-testteam-dev
+   kubectl describe namespace devops-testteam-dev
+   kubectl get resourcequota -n devops-testteam-dev
+   ```
+
+### Test Azure Storage Request (if LAB03 completed)
+
+1. **Navigate to Create page in Backstage**
+2. **Find "Request Azure Storage Account" template**
+3. **Fill in the form**:
+   - Team Name: `testteam`
+   - Environment: `dev`
+   - Storage Account Name: `teststoragews001` (must be globally unique!)
+   - Purpose: `Testing Azure resource provisioning`
+   - Azure Region: `swedencentral`
+   - SKU: `Standard_LRS`
+
+4. **Create and merge the PR** (same process as namespace)
+
+5. **Verify Azure resources**:
+   ```bash
+   # Watch ArgoCD sync
+   argocd app sync azure-storage-accounts
+
+   # Check storage account in Kubernetes
+   kubectl get storageaccount -n default
+
+   # Verify in Azure
+   az storage account show --name teststoragews001 --resource-group testteam-dev-rg
+   ```
+
+### ✅ Verification Steps - Part 4
+
+Complete workflow verification:
 
 ```bash
-# TechDocs allows you to write documentation in Markdown alongside your code
-# and have it automatically built and published in Backstage
+# Check namespace exists with correct labels
+kubectl get namespace devops-testteam-dev -o yaml | grep -A 5 "labels:"
 
-# Example: Add docs to a component
-# Create a docs/ folder with Markdown files
-# Reference it in catalog-info.yaml:
-# metadata:
-#   annotations:
-#     backstage.io/techdocs-ref: dir:.
+# Verify resource quota is applied
+kubectl describe resourcequota -n devops-testteam-dev
+
+# Check ArgoCD application status
+argocd app get dev-namespaces | grep -E "(Health|Sync)"
+
+# If Azure resources were created, check them too
+kubectl get resourcegroup,storageaccount --all-namespaces | grep testteam
+
+# View recent PRs in your repository
+curl -H "Authorization: token $GITHUB_TOKEN" \
+  "https://api.github.com/repos/$GITHUB_USERNAME/platform-self-service/pulls?state=closed" | \
+  jq '.[] | {title, merged_at}' | head -20
 ```
 
-### Search
+**Expected Results:**
+- ✅ Backstage created PRs automatically
+- ✅ PRs contain correct YAML manifests
+- ✅ After merge, ArgoCD synced changes
+- ✅ Resources created in cluster/Azure
+- ✅ Complete GitOps audit trail in Git history
 
-```bash
-# Backstage includes powerful search across catalog, docs, and more
-# Try the search bar at the top of the UI
-# Search for components, APIs, documentation, etc.
-```
-
-### API Catalog
-
-```bash
-# Register APIs to create a centralized API catalog
-# Example API definition:
-cat << 'EOF' > /tmp/example-api.yaml
-apiVersion: backstage.io/v1alpha1
-kind: API
-metadata:
-  name: platform-api
-  description: Platform Engineering Workshop API
-spec:
-  type: openapi
-  lifecycle: production
-  owner: platform-team
-  system: platform-infrastructure
-  definition: |
-    openapi: 3.0.0
-    info:
-      title: Platform API
-      version: 1.0.0
-    paths:
-      /health:
-        get:
-          summary: Health check
-          responses:
-            '200':
-              description: Healthy
-EOF
-```
-
-### Custom Plugins
-
-Backstage's real power is in plugins. Popular plugins include:
-- **Cost Insights**: Cloud cost visibility
-- **Tech Radar**: Technology adoption tracking
-- **Lighthouse**: Web performance metrics
-- **Prometheus**: Metrics and monitoring
-- **SonarQube**: Code quality
-- **PagerDuty**: Incident management
-- **Jenkins/GitLab CI**: Build status
 
 ## Troubleshooting
 
-### Common Issues and Solutions
+### Common Issues
 
-#### Issue: Backstage Pod Won't Start
+#### Backstage Pod Not Starting
 
 ```bash
-# Check pod status and events
+# Check pod status
 kubectl get pods -n backstage
-kubectl describe pod -n backstage -l app.kubernetes.io/name=backstage
+kubectl describe pod -n backstage -l app=backstage
 
-# Common causes:
-# 1. Insufficient memory - increase limits in values.yaml
-# 2. Database connection issues - verify PostgreSQL is running
-# 3. Invalid configuration - check app-config.yaml syntax
+# Check logs
+kubectl logs -n backstage -l app=backstage --tail=100
 
-# Check logs for specific errors
-kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=200
+# Common issues:
+# 1. Insufficient memory - increase resource limits
+# 2. GitHub token invalid - recreate secret with valid token
+# 3. ConfigMap mount issues - verify ConfigMaps exist
 ```
 
-#### Issue: Can't Access Backstage UI
+#### Templates Not Visible in UI
 
 ```bash
-# Check ingress is configured
-kubectl get ingress -n backstage
+# Verify ConfigMaps exist
+kubectl get configmaps -n backstage | grep template
 
-# Verify NGINX ingress is working
-kubectl get pods -n ingress-nginx
+# Check Backstage loaded them
+kubectl logs -n backstage -l app=backstage | grep -i "template"
 
-# Test ingress directly (replace YOUR_IP with your actual IP)
-curl -v http://backstage.YOUR_IP.nip.io
-
-# Check Backstage service
-kubectl get svc -n backstage
-kubectl port-forward -n backstage svc/backstage-backstage 7007:7007
-# Then visit http://localhost:7007
+# Restart if needed
+kubectl rollout restart deployment/backstage -n backstage
 ```
 
-#### Issue: Kubernetes Plugin Not Showing Resources
+#### Pull Request Creation Fails
 
 ```bash
-# Verify ServiceAccount has correct permissions
-kubectl get clusterrole backstage-k8s-reader
-kubectl describe clusterrolebinding backstage-k8s-reader
+# Verify GitHub token has correct permissions
+curl -H "Authorization: token $GITHUB_TOKEN" \
+  https://api.github.com/user/repos | jq '.[].full_name' | grep platform-self-service
 
-# Check catalog annotations are correct
-# metadata:
-#   annotations:
-#     backstage.io/kubernetes-id: <deployment-name>
-#     backstage.io/kubernetes-namespace: <namespace>
+# Check Backstage can reach GitHub
+kubectl logs -n backstage -l app=backstage | grep -i "github"
 
-# Verify Backstage can reach Kubernetes API
-kubectl logs -n backstage -l app.kubernetes.io/name=backstage | grep -i kubernetes
+# Verify repository name in template matches your repo
 ```
 
-#### Issue: ArgoCD Plugin Not Working
+#### ArgoCD Not Syncing After PR Merge
 
 ```bash
-# Verify ArgoCD token is valid
-kubectl get secret argocd-credentials -n backstage -o yaml
+# Check ArgoCD is polling correctly
+argocd app get dev-namespaces
 
-# Check Backstage can reach ArgoCD API
-kubectl run curl-test --rm -it --restart=Never \
-  --image=curlimages/curl:latest \
-  --namespace backstage \
-  --command -- curl -v http://argocd-server.argocd.svc.cluster.local
+# Manually trigger sync
+argocd app sync dev-namespaces
 
-# Check ArgoCD annotations in catalog
-# metadata:
-#   annotations:
-#     argocd/app-name: <application-name>
+# Force refresh from Git
+argocd app get dev-namespaces --refresh
 ```
 
-#### Issue: Templates Not Appearing
+## Benefits of This Approach
 
-```bash
-# Check template YAML syntax is valid
-kubectl get configmap backstage-templates -n backstage -o yaml
+### What You've Built
 
-# Verify Backstage loaded the templates
-kubectl logs -n backstage -l app.kubernetes.io/name=backstage | grep -i template
+You now have a complete self-service platform where:
 
-# Templates require proper apiVersion
-# apiVersion: scaffolder.backstage.io/v1beta3
-# kind: Template
+1. **Developers use forms** instead of writing YAML
+2. **Pull Requests are automatic** - no manual Git operations
+3. **Platform team reviews** PRs before resources are created
+4. **ArgoCD automatically syncs** approved changes
+5. **Full audit trail** exists in Git history
+6. **Resources are standardized** through templates
 
-# Restart Backstage after adding templates
-kubectl rollout restart deployment -n backstage -l app.kubernetes.io/name=backstage
-```
+### Comparison: Before vs After Backstage
 
-### ✅ Final Verification
+**Before (LAB02/LAB03)**:
+- Developer learns Git workflow
+- Developer writes YAML manually
+- Developer creates branch, commits, pushes
+- Developer creates Pull Request
+- Platform team reviews and merges
+- ArgoCD syncs changes
 
-Before finishing, verify everything is working:
+**After (LAB04A)**:
+- Developer fills out a form
+- Backstage generates correct YAML
+- Backstage creates PR automatically
+- Platform team reviews and merges
+- ArgoCD syncs changes
 
-```bash
-# Check all pods are running
-kubectl get pods -n backstage
-kubectl get pods -n argocd
+**Key Improvement**: Less friction, fewer errors, faster onboarding!
 
-# Verify services are accessible (replace YOUR_IP with your actual IP)
-curl -s http://backstage.YOUR_IP.nip.io | grep -i backstage
-curl -s http://argocd.YOUR_IP.nip.io | grep -i argocd
+### Production Considerations
 
-# Check created resources
-kubectl get namespaces | grep -E "(myteam|frontend|backend)"
+To make this production-ready, you would:
 
-# Verify Backstage catalog has entries (replace YOUR_IP with your actual IP)
-curl -s http://backstage.YOUR_IP.nip.io/api/catalog/entities | jq '. | length'
-```
-
-**Expected State:**
-- ✅ Backstage running and accessible via browser
-- ✅ Kubernetes plugin showing cluster resources
-- ✅ Kubernetes plugin showing cluster resources
-- ✅ ArgoCD integration showing application status
-- ✅ Software templates available in Create page
-- ✅ Test namespace created through self-service workflow
-- ✅ Catalog showing registered components and resources
-
-### 🤔 Final Reflection Questions
-
-Take a moment to reflect on the entire lab:
-
-1. **Platform Value**: How does Backstage change the developer experience compared to using kubectl, ArgoCD UI, and Azure Portal separately?
-
-2. **Adoption Strategy**: What would be your strategy to drive adoption of Backstage in your organization? What features would you emphasize?
-
-3. **Customization vs Standard**: Backstage is highly customizable. How do you balance customization (making it perfect for your org) vs using standard features (easier upgrades)?
-
-4. **Golden Paths**: With software templates, you can encode "golden paths" for common tasks. What templates would be most valuable for your platform?
-
-5. **Metrics and Success**: How would you measure the success of your Backstage implementation? What metrics matter?
-
-6. **Platform Evolution**: You now have ArgoCD for GitOps, ASO for cloud resources, and Backstage for the UI. What would you add next to your platform?
+1. **Authentication**: Replace guest auth with OAuth (GitHub, Azure AD, Okta)
+2. **RBAC**: Control who can create which resources
+3. **Approvals**: Add approval workflows in GitHub (branch protection, CODEOWNERS)
+4. **Monitoring**: Add observability for Backstage, ArgoCD, and resource creation
+5. **Cost Controls**: Add budget checks and quotas
+6. **Disaster Recovery**: Back up Backstage catalog and configuration
 
 ## Cleanup (Optional)
 
-If you want to clean up Backstage from your cluster:
+To remove Backstage:
 
 ```bash
-# Delete test namespaces
-kubectl delete namespace myteam-dev --grace-period=0 --force
-
-# Uninstall Backstage
-helm uninstall backstage -n backstage
-
-# Delete namespace
+# Delete Backstage deployment
 kubectl delete namespace backstage
 
-# Delete RBAC resources
-kubectl delete clusterrole backstage-k8s-reader
-kubectl delete clusterrolebinding backstage-k8s-reader
+# Remove test resources
+kubectl delete namespace devops-testteam-dev
+
+# Remove Azure test resources (if created)
+az storage account delete --name teststoragews001 --resource-group testteam-dev-rg --yes
+az group delete --name testteam-dev-rg --yes
 ```
 
 ## Next Steps
 
-Congratulations! You now have:
-- ✅ Backstage deployed as a developer portal
-- ✅ Integration with Kubernetes for resource visibility
-- ✅ Integration with ArgoCD for GitOps status
-- ✅ Software templates for self-service resource requests
-- ✅ Complete understanding of how to build user interfaces for your platform
-- ✅ Hands-on experience with a production-grade developer portal
+Congratulations! You've completed the Platform Engineering Workshop!
+
+### What You've Learned
+
+Across all labs, you've built a complete Internal Developer Platform with:
+
+**LAB01**: 
+- ✅ Local Kubernetes cluster (Kind)
+- ✅ GitOps with ArgoCD
+
+**LAB02**:
+- ✅ Self-service via Git
+- ✅ Multi-tenant namespaces with quotas
+- ✅ ArgoCD ApplicationSets for automation
+
+**LAB03**:
+- ✅ Azure Service Operator for cloud resources
+- ✅ Kubernetes as control plane for Azure
+- ✅ GitOps for infrastructure
+
+**LAB04A**:
+- ✅ Developer portal (Backstage)
+- ✅ Software templates for self-service
+- ✅ Automated PR creation
+- ✅ Complete developer experience
 
 ### Optional: LAB04B
 
-Continue to **LAB04B: Advanced Platform Concepts - Abstractions** where you'll explore:
-- Kubernetes Resource Orchestration (KRO)
-- Creating higher-level abstractions over Azure resources
-- Building "App Concepts" that hide infrastructure complexity
-- Combining KRO with ASO for powerful platform capabilities
+If you have time, continue to **LAB04B: Advanced Platform Concepts - Abstractions** to learn about:
+- Kubernetes Resource Model (KRO)
+- Creating higher-level abstractions
+- Hiding infrastructure complexity
+- Building "App Concepts" that compose multiple resources
 
-### Key Takeaways
+### Continue Learning
 
-From this lab, you should understand:
+**Platform Engineering**:
+- [Platform Engineering website](https://platformengineering.org/)
+- [Internal Developer Platform](https://internaldeveloperplatform.org/)
+- [Team Topologies book](https://teamtopologies.com/)
 
-1. **Developer Portals Are Essential**: As platforms grow complex, a unified UI becomes critical for developer productivity
+**Tools Deep Dive**:
+- [ArgoCD Documentation](https://argo-cd.readthedocs.io/)
+- [Backstage Documentation](https://backstage.io/docs/)
+- [Azure Service Operator](https://azure.github.io/azure-service-operator/)
+- [Crossplane](https://www.crossplane.io/) - Alternative to ASO
 
-2. **Backstage Is a Framework**: Backstage isn't just a tool - it's a framework for building your custom developer portal
-
-3. **Plugins Enable Integration**: The plugin architecture allows you to bring all your tools into one place
-
-4. **Software Templates = Self-Service**: Templates turn complex infrastructure into simple forms that anyone can use
-
-5. **Catalog-Driven Architecture**: Maintaining a catalog of services, APIs, and resources creates visibility and governance
-
-6. **Platform as Product**: With Backstage, you're not just providing infrastructure - you're building a product for developers
-
-## Resources and Further Learning
-
-### Official Documentation
-- [Backstage Official Documentation](https://backstage.io/docs/overview/what-is-backstage)
-- [Backstage Architecture](https://backstage.io/docs/overview/architecture-overview)
-- [Software Templates](https://backstage.io/docs/features/software-templates/)
-- [Backstage Plugins](https://backstage.io/plugins)
-
-### Kubernetes Integration
-- [Kubernetes Plugin](https://github.com/backstage/backstage/tree/master/plugins/kubernetes)
-- [ArgoCD Plugin](https://roadie.io/backstage/plugins/argo-cd/)
-
-### Community and Examples
-- [Backstage GitHub Repository](https://github.com/backstage/backstage)
-- [Backstage Community Plugins](https://github.com/backstage/community-plugins)
-- [Backstage Demo](https://demo.backstage.io/)
-
-### Related Topics
-- [Platform Engineering](https://platformengineering.org/)
-- [Internal Developer Platforms](https://internaldeveloperplatform.org/)
-- [Golden Paths](https://engineering.atspotify.com/2020/08/how-we-use-golden-paths-to-solve-fragmentation-in-our-software-ecosystem/)
-
-### Useful Commands Reference
-
-```bash
-# Backstage Management
-kubectl get pods -n backstage
-kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=100
-kubectl rollout restart deployment -n backstage -l app.kubernetes.io/name=backstage
-helm list -n backstage
-
-# Backstage API Testing (replace YOUR_IP with your actual IP)
-curl http://backstage.YOUR_IP.nip.io/api/catalog/entities
-curl http://backstage.YOUR_IP.nip.io/api/catalog/entities?filter=kind=component
-
-# Configuration
-kubectl get configmap -n backstage
-kubectl describe configmap backstage-catalog -n backstage
-
-# Troubleshooting
-kubectl describe pod -n backstage -l app.kubernetes.io/name=backstage
-kubectl port-forward -n backstage svc/backstage-backstage 7007:7007
-```
+**CNCF Landscape**:
+- [CNCF Cloud Native Interactive Landscape](https://landscape.cncf.io/)
+- Explore tools for observability, security, networking, storage
 
 ## Summary
 
-In this lab, you've built a complete developer portal that:
-- Provides a single interface for all platform capabilities
-- Integrates with Kubernetes, ArgoCD, and other platform tools
-- Enables self-service through software templates
-- Creates visibility through a service catalog
-- Reduces cognitive load for developers
-- Enables platform teams to scale their impact
+In this lab, you:
 
-You've experienced firsthand how Backstage transforms a collection of tools and APIs into a cohesive Internal Developer Platform with a great user experience.
+1. ✅ Deployed Backstage on Kind cluster
+2. ✅ Integrated with GitHub for PR automation
+3. ✅ Created software templates for namespaces
+4. ✅ Created software templates for Azure resources
+5. ✅ Tested complete self-service workflow
+6. ✅ Experienced GitOps with user-friendly UI
 
-This is the power of platform engineering - not just providing infrastructure, but creating products that developers love to use! 🚀
+### Key Takeaways
+
+1. **Developer Experience Matters**: A good UI dramatically improves platform adoption
+2. **Templates Enable Golden Paths**: Standardize best practices through forms
+3. **GitOps Provides Safety**: All changes go through Git and PR reviews
+4. **Automation Reduces Errors**: Generated YAML is more reliable than manual edits
+5. **Platform as Product**: Treat your platform like a product developers want to use
+
+## Resources
+
+- [Backstage Software Templates Guide](https://backstage.io/docs/features/software-templates/)
+- [GitHub Actions for Backstage](https://github.com/backstage/software-templates)
+- [Backstage Community Plugins](https://github.com/backstage/community-plugins)
+- [Platform Engineering Slack](https://platformengineering.org/slack-rd)
+
+---
+
+**Congratulations on completing LAB04A!** 
+
+You've built a production-grade self-service platform with:
+- Infrastructure as Code (GitOps)
+- Self-service portals (Backstage)
+- Automated workflows (ArgoCD)
+- Cloud resource management (ASO)
+
+This is the foundation of modern Platform Engineering! 🚀
