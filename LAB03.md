@@ -567,29 +567,71 @@ kubectl apply -f /tmp/azure-project.yaml
 argocd proj get azure-resources
 ```
 
-### Create ArgoCD Application
+### Create ArgoCD ApplicationSet
 
-Now create an ArgoCD Application that monitors your GitHub repository:
+Now create an ArgoCD ApplicationSet that monitors your GitHub repository for changes and automatically deploys Azure resources from multiple directories:
 
 ```bash
-# Create the ArgoCD application using the CLI
+# Create the Azure resources ApplicationSet
 # Replace $GITHUB_USERNAME with your GitHub username
-argocd app create azure-resources \
-  --project azure-resources \
-  --repo https://github.com/$GITHUB_USERNAME/platform-self-service.git \
-  --path azure-resources \
-  --dest-server https://kubernetes.default.svc \
-  --dest-namespace default \
-  --sync-policy automated \
-  --auto-prune \
-  --self-heal
+cat << EOF > /tmp/azure-resources-applicationset.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: azure-resources
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/$GITHUB_USERNAME/platform-self-service.git
+        revision: HEAD
+        directories:
+          - path: azure-resources/*
+  template:
+    metadata:
+      name: 'azure-{{path.basename}}'
+    spec:
+      project: azure-resources
+      source:
+        repoURL: https://github.com/$GITHUB_USERNAME/platform-self-service.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: default
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=false
+EOF
 
-# Check application status
-argocd app get azure-resources
+# Apply the ApplicationSet
+kubectl apply -f /tmp/azure-resources-applicationset.yaml
 
-# Watch the application sync
-argocd app get azure-resources --watch
+# Check the ApplicationSet was created
+kubectl get applicationset -n argocd | grep azure-resources
+
+# The ApplicationSet will automatically generate Applications for each subdirectory under azure-resources/
+# Check which applications were generated
+argocd app list | grep azure
+
+# Watch the generated applications sync
+# For example, if you have azure-resources/resource-groups/ and azure-resources/storage-accounts/
+# You'll see applications like: azure-resource-groups, azure-storage-accounts
+argocd app get azure-resource-groups
+argocd app get azure-storage-accounts
 ```
+
+**Why use an ApplicationSet instead of a single Application?**
+
+The ApplicationSet approach provides several benefits:
+1. **Automatic Discovery**: When you add a new subdirectory under `azure-resources/` (e.g., `azure-resources/key-vaults/`), ArgoCD automatically generates a new application for it
+2. **Better Organization**: Each resource type (resource groups, storage accounts, etc.) is managed as a separate application, making it easier to track sync status and troubleshoot issues
+3. **Scalability**: As your platform grows and you add more Azure resource types, you don't need to manually create new ArgoCD applications
+4. **Consistency**: All generated applications follow the same pattern and configuration defined in the ApplicationSet template
+5. **Similar to LAB02**: This follows the same pattern used for namespace management in LAB02, providing a consistent experience across different resource types
 
 ### Monitor Azure Resource Creation
 
@@ -623,16 +665,23 @@ az group show --name workshop-rg --output yaml
 Verify the complete GitOps workflow:
 
 ```bash
-# Check ArgoCD application status
-argocd app get azure-resources
+# Check ArgoCD ApplicationSet status
+kubectl get applicationset azure-resources -n argocd
+
+# Check the generated applications
 argocd app list | grep azure
+
+# Get status of individual generated applications
+argocd app get azure-resource-groups
+argocd app get azure-storage-accounts
 
 # Verify resources in Kubernetes
 kubectl get resourcegroup,storageaccount
 
-# Check ArgoCD has synced successfully
-# The application should show "Healthy" and "Synced"
-argocd app get azure-resources | grep -E "(Health|Sync)"
+# Check ArgoCD applications have synced successfully
+# The applications should show "Healthy" and "Synced"
+argocd app get azure-resource-groups | grep -E "(Health|Sync)"
+argocd app get azure-storage-accounts | grep -E "(Health|Sync)"
 
 # Verify in Azure
 az group show --name workshop-rg --output table
@@ -640,9 +689,11 @@ az storage account show --name workshopstorage<your-id> --resource-group worksho
 ```
 
 **Expected Output:**
-- ArgoCD application shows status "Healthy" and "Synced"
+- ArgoCD ApplicationSet `azure-resources` exists
+- Multiple generated applications visible (e.g., `azure-resource-groups`, `azure-storage-accounts`)
+- Each generated application shows status "Healthy" and "Synced"
 - Resources visible in both Kubernetes (`kubectl get`) and Azure (`az` commands)
-- ArgoCD UI shows your application with all resources green/healthy
+- ArgoCD UI shows your ApplicationSet and generated applications with all resources green/healthy
 
 ### 🤔 Reflection Questions - Part 4
 
@@ -703,8 +754,8 @@ git push origin main
 
 ```bash
 # ArgoCD will automatically detect and sync the change
-# Watch the application update
-argocd app get azure-resources --watch
+# Watch the resource-groups application update (since we changed a resource group)
+argocd app get azure-resource-groups --watch
 
 # Check the resource in Kubernetes
 kubectl describe resourcegroup workshop-rg | grep -A 10 "tags:"
@@ -718,8 +769,8 @@ az group show --name workshop-rg --query tags
 Verify the GitOps workflow worked:
 
 ```bash
-# Check ArgoCD synced the change
-argocd app get azure-resources
+# Check ArgoCD synced the change (for the resource-groups application)
+argocd app get azure-resource-groups
 
 # Verify tags were updated in Kubernetes
 kubectl get resourcegroup workshop-rg -o yaml | grep -A 10 "tags:"
@@ -730,7 +781,7 @@ az group show --name workshop-rg --query tags --output yaml
 ```
 
 **Expected Output:**
-- ArgoCD shows a recent sync timestamp
+- ArgoCD shows a recent sync timestamp for the azure-resource-groups application
 - New tags visible in both Kubernetes and Azure
 - The change propagated from Git → ArgoCD → Kubernetes → Azure
 
@@ -799,14 +850,20 @@ kubectl logs -n azureserviceoperator-system deployment/azureserviceoperator-cont
 #### Issue: ArgoCD Won't Sync
 
 ```bash
-# Check application health and sync status
-argocd app get azure-resources --refresh
+# Check ApplicationSet status
+kubectl get applicationset azure-resources -n argocd
 
-# Check for sync errors
-argocd app get azure-resources
+# Check application health and sync status for generated applications
+argocd app get azure-resource-groups --refresh
+argocd app get azure-storage-accounts --refresh
 
-# Force a manual sync
-argocd app sync azure-resources --prune
+# Check for sync errors on any generated application
+argocd app get azure-resource-groups
+argocd app get azure-storage-accounts
+
+# Force a manual sync on specific applications
+argocd app sync azure-resource-groups --prune
+argocd app sync azure-storage-accounts --prune
 
 # Verify ArgoCD can access your GitHub repository
 argocd repo list
@@ -828,8 +885,13 @@ az storage account check-name --name your-storage-name
 Before finishing this lab, verify everything is working:
 
 ```bash
-# Check ArgoCD application is healthy
-argocd app get azure-resources
+# Check ArgoCD ApplicationSet is healthy
+kubectl get applicationset azure-resources -n argocd
+
+# Check all generated applications are healthy
+argocd app list | grep azure
+argocd app get azure-resource-groups
+argocd app get azure-storage-accounts
 
 # Verify Azure resources exist in Kubernetes (all namespaces)
 kubectl get resourcegroup,storageaccount --all-namespaces
@@ -849,12 +911,14 @@ kubectl get resourcegroup,storageaccount -n devops-frontend-dev 2>/dev/null || e
 ```
 
 **Expected State:**
-- ✅ ArgoCD application shows "Healthy" and "Synced"
+- ✅ ArgoCD ApplicationSet `azure-resources` exists and is healthy
+- ✅ Multiple generated applications visible (e.g., `azure-resource-groups`, `azure-storage-accounts`)
+- ✅ Each generated application shows "Healthy" and "Synced"
 - ✅ ArgoCD project supports all ASO resource types and devops-* namespaces
 - ✅ Resource Groups visible in both Kubernetes and Azure (in default and/or devops namespaces)
 - ✅ Storage Accounts visible in both Kubernetes and Azure
 - ✅ ASO pod running without errors
-- ✅ GitHub repository contains resource definitions for multiple namespaces
+- ✅ GitHub repository contains resource definitions organized in subdirectories under azure-resources/
 - ✅ Resources can be deployed to namespaces created in LAB02 (devops-frontend-dev, devops-backend-dev, etc.)
 
 ### 🤔 Final Reflection Questions
@@ -880,8 +944,12 @@ Take a moment to reflect on the entire lab:
 If you want to clean up all resources created in this lab:
 
 ```bash
-# Delete the ArgoCD application (this will remove Azure resources from all namespaces)
-argocd app delete azure-resources --cascade
+# Delete the ArgoCD ApplicationSet (this will remove all generated applications and Azure resources)
+kubectl delete applicationset azure-resources -n argocd
+
+# Alternatively, delete individual generated applications
+# argocd app delete azure-resource-groups --cascade
+# argocd app delete azure-storage-accounts --cascade
 
 # Wait for Azure resources to be deleted (check all namespaces)
 kubectl get resourcegroup,storageaccount --all-namespaces --watch
