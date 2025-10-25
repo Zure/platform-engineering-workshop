@@ -182,7 +182,7 @@ spec:
       location:
         type: string
         description: "Azure region"
-        default: "eastus"
+        default: "swedencentral"
 
   # Define what resources to create
   resources:
@@ -240,7 +240,7 @@ metadata:
 spec:
   appName: myapp
   environment: dev
-  location: eastus
+  location: swedencentral
 EOF
 
 # Apply it
@@ -360,7 +360,7 @@ spec:
       location:
         type: string
         description: "Azure region"
-        default: "eastus"
+        default: "swedencentral"
 
   # Define what gets created
   resources:
@@ -488,7 +488,7 @@ spec:
   appName: myapp
   environment: dev
   databaseType: postgresql
-  location: eastus
+  location: swedencentral
 EOF
 
 # Apply it
@@ -597,7 +597,7 @@ spec:
       location:
         type: string
         description: "Azure region"
-        default: "eastus"
+        default: "swedencentral"
       publicAccess:
         type: boolean
         description: "Whether to allow public blob access"
@@ -719,7 +719,7 @@ metadata:
 spec:
   appName: myapp
   environment: dev
-  location: eastus
+  location: swedencentral
   publicAccess: false
   redundancy: LRS
 EOF
@@ -952,7 +952,7 @@ spec:
   appName: newteam
   environment: dev
   databaseType: postgresql
-  location: eastus
+  location: swedencentral
 ---
 apiVersion: kro.run/v1alpha1
 kind: AppStorage
@@ -962,7 +962,7 @@ metadata:
 spec:
   appName: newteam
   environment: dev
-  location: eastus
+  location: swedencentral
   publicAccess: false
   redundancy: LRS
 EOF
@@ -982,7 +982,7 @@ Resources:
 - Blob storage (LRS, private)
 
 Environment: dev
-Region: eastus"
+Region: swedencentral"
 git push origin main
 ```
 
@@ -1119,7 +1119,7 @@ spec:
         default: "dev"
       location:
         type: string
-        default: "eastus"
+        default: "swedencentral"
 
   resources:
   # 1. Create an AppNamespace
