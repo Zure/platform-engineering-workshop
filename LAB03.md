@@ -251,31 +251,28 @@ Consider what you've just installed:
 
 ### Set Up GitHub Repository
 
-Instead of using a local git repository, we'll create a proper GitHub repository for managing Azure resources. This follows real-world GitOps practices.
+We'll use the same `platform-self-service` repository from LAB02 to manage Azure resources. This maintains continuity and allows all self-service requests (namespaces, Azure resources, etc.) to flow through the same Git repository.
 
 ```bash
-# Create a local directory for our Azure resources
-mkdir -p ~/azure-resources-workshop
-cd ~/azure-resources-workshop
+# Navigate to your platform-self-service repository from LAB02
+cd ~/platform-self-service
 
-# Initialize git repository
-git init
+# Create directory structure for Azure resources
+mkdir -p azure-resources/resource-groups azure-resources/storage-accounts
 
-# Create directory structure
-mkdir -p resource-groups storage-accounts
+# Update README to include Azure resources
+cat << 'EOF' >> README.md
 
-# Create README
-cat << 'EOF' > README.md
-# Azure Resources via GitOps
+## Azure Resources
 
-This repository contains Azure resource definitions managed through Azure Service Operator and ArgoCD.
+This repository also contains Azure resource definitions managed through Azure Service Operator and ArgoCD.
 
-## Structure
+### Structure
 
-- `resource-groups/` - Azure Resource Group definitions
-- `storage-accounts/` - Azure Storage Account definitions
+- `azure-resources/resource-groups/` - Azure Resource Group definitions
+- `azure-resources/storage-accounts/` - Azure Storage Account definitions
 
-## Workflow
+### Workflow
 
 1. Define Azure resources as Kubernetes manifests
 2. Commit and push changes to GitHub
@@ -283,41 +280,13 @@ This repository contains Azure resource definitions managed through Azure Servic
 4. Azure Service Operator creates/updates Azure resources
 EOF
 
-# Create .gitignore
-cat << 'EOF' > .gitignore
-.DS_Store
-*.tmp
-*.log
-EOF
-
-# Initial commit
+# Initial commit for Azure resources structure
 git add .
-git config user.email "workshop@company.com"
-git config user.name "Workshop Participant"
-git commit -m "Initial Azure resources repository structure"
+git commit -m "Add Azure resources directory structure"
+git push origin main
 ```
 
-### Create GitHub Repository
-
-Now create the repository on GitHub:
-
-```bash
-# Option 1: Using GitHub CLI (if installed)
-gh repo create azure-resources-workshop --public --source=. --remote=origin --push
-
-# Option 2: Manual creation
-# 1. Go to https://github.com/new
-# 2. Name: azure-resources-workshop
-# 3. Description: Azure resources managed via GitOps
-# 4. Visibility: Public (or Private if you prefer)
-# 5. Click "Create repository"
-# 6. Then run these commands:
-git remote add origin https://github.com/YOUR_USERNAME/azure-resources-workshop.git
-git branch -M main
-git push -u origin main
-```
-
-**Important**: Replace `YOUR_USERNAME` with your actual GitHub username in the commands above.
+**Note**: We're extending the `platform-self-service` repository from LAB02 rather than creating a new repository. This keeps all platform resources in one place and maintains a continuous story throughout the workshop.
 
 ### Create Azure Resource Definitions
 
@@ -325,7 +294,7 @@ Let's create simple Azure resource manifests:
 
 ```bash
 # Create a Resource Group manifest
-cat << 'EOF' > resource-groups/workshop-rg.yaml
+cat << 'EOF' > azure-resources/resource-groups/workshop-rg.yaml
 apiVersion: resources.azure.com/v1api20200601
 kind: ResourceGroup
 metadata:
@@ -342,7 +311,7 @@ EOF
 # Create a Storage Account manifest
 # Note: Storage account names must be globally unique, lowercase, 3-24 chars
 # Replace 'uniqueid' with your initials and a random number
-cat << 'EOF' > storage-accounts/workshop-storage.yaml
+cat << 'EOF' > azure-resources/storage-accounts/workshop-storage.yaml
 apiVersion: storage.azure.com/v1api20230101
 kind: StorageAccount
 metadata:
@@ -365,8 +334,8 @@ spec:
 EOF
 
 # Commit and push to GitHub
-git add .
-git commit -m "Add Resource Group and Storage Account definitions"
+git add azure-resources/
+git commit -m "Add Resource Group and Storage Account definitions for Azure"
 git push origin main
 ```
 
@@ -381,22 +350,22 @@ Verify your GitHub repository is set up correctly:
 
 ```bash
 # Verify your repository structure
-ls -la ~/azure-resources-workshop/
-tree ~/azure-resources-workshop/
+ls -la ~/platform-self-service/
+tree ~/platform-self-service/
 
 # Check git status and remotes
-cd ~/azure-resources-workshop
+cd ~/platform-self-service
 git status
 git remote -v
 
 # Verify files are pushed to GitHub
-# Visit: https://github.com/YOUR_USERNAME/azure-resources-workshop
-# You should see your files there
+# Visit: https://github.com/$GITHUB_USERNAME/platform-self-service
+# You should see your azure-resources folder there
 ```
 
 **Expected Output:**
-- Directory structure with `resource-groups/` and `storage-accounts/` folders
-- Git remote pointing to your GitHub repository
+- Directory structure with `azure-resources/resource-groups/` and `azure-resources/storage-accounts/` folders
+- Git remote pointing to your GitHub platform-self-service repository
 - Files visible on GitHub web interface
 
 ### 🤔 Reflection Questions - Part 3
@@ -424,12 +393,12 @@ First, configure ArgoCD to access your GitHub repository:
 ```bash
 # Add your GitHub repository to ArgoCD
 # For public repositories:
-argocd repo add https://github.com/YOUR_USERNAME/azure-resources-workshop.git
+argocd repo add https://github.com/$GITHUB_USERNAME/platform-self-service.git
 
 # For private repositories, you'll need a token:
-# argocd repo add https://github.com/YOUR_USERNAME/azure-resources-workshop.git \
-#   --username YOUR_USERNAME \
-#   --password YOUR_GITHUB_TOKEN
+# argocd repo add https://github.com/$GITHUB_USERNAME/platform-self-service.git \
+#   --username $GITHUB_USERNAME \
+#   --password $GITHUB_TOKEN
 
 # Verify the repository was added
 argocd repo list
@@ -450,7 +419,7 @@ spec:
 
   # Source repositories - update with your GitHub username
   sourceRepos:
-  - 'https://github.com/*/azure-resources-workshop.git'
+  - 'https://github.com/*/platform-self-service.git'
 
   # Destination clusters and namespaces
   destinations:
@@ -486,11 +455,11 @@ Now create an ArgoCD Application that monitors your GitHub repository:
 
 ```bash
 # Create the ArgoCD application using the CLI
-# Replace YOUR_USERNAME with your GitHub username
+# Replace $GITHUB_USERNAME with your GitHub username
 argocd app create azure-resources \
   --project azure-resources \
-  --repo https://github.com/YOUR_USERNAME/azure-resources-workshop.git \
-  --path . \
+  --repo https://github.com/$GITHUB_USERNAME/platform-self-service.git \
+  --path azure-resources \
   --dest-server https://kubernetes.default.svc \
   --dest-namespace default \
   --sync-policy automated \
@@ -587,10 +556,10 @@ Let's test the complete GitOps workflow by making a change:
 
 ```bash
 # Navigate to your repository
-cd ~/azure-resources-workshop
+cd ~/platform-self-service
 
 # Add a tag to the Resource Group
-cat << 'EOF' > resource-groups/workshop-rg.yaml
+cat << 'EOF' > azure-resources/resource-groups/workshop-rg.yaml
 apiVersion: resources.azure.com/v1api20200601
 kind: ResourceGroup
 metadata:
@@ -607,7 +576,7 @@ spec:
 EOF
 
 # Commit and push the change
-git add resource-groups/workshop-rg.yaml
+git add azure-resources/resource-groups/workshop-rg.yaml
 git commit -m "Add additional tags to resource group"
 git push origin main
 ```
