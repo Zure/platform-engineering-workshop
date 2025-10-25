@@ -183,11 +183,35 @@ helm repo add aso2 https://raw.githubusercontent.com/Azure/azure-service-operato
 # Update helm repositories
 helm repo update
 
-# Install Azure Service Operator
-$ helm upgrade --install aso2 aso2/azure-service-operator \
+# Install Azure Service Operator with Azure credentials
+# Replace the placeholder values with your Service Principal credentials from Part 1
+helm upgrade --install aso2 aso2/azure-service-operator \
     --create-namespace \
     --namespace=azureserviceoperator-system \
-    --set crdPattern='resources.azure.com/*;storage.azure.com/*;keyvault.azure.com/*;managedidentity.azure.com/*'
+    --set crdPattern='resources.azure.com/*;storage.azure.com/*;keyvault.azure.com/*;managedidentity.azure.com/*' \
+    --set azureSubscriptionID='YOUR_SUBSCRIPTION_ID' \
+    --set azureTenantID='YOUR_TENANT_ID' \
+    --set azureClientID='YOUR_CLIENT_ID' \
+    --set azureClientSecret='YOUR_CLIENT_SECRET'
+```
+
+**Important**: Replace `YOUR_SUBSCRIPTION_ID`, `YOUR_TENANT_ID`, `YOUR_CLIENT_ID`, and `YOUR_CLIENT_SECRET` with the actual values from the Service Principal you created in Part 1.
+
+**Alternative Method - Manual Secret Creation:**
+
+If you prefer to create the secret separately or need to update credentials later:
+
+```bash
+# Create the aso-controller-settings secret with Azure credentials
+kubectl create secret generic aso-controller-settings \
+    --namespace azureserviceoperator-system \
+    --from-literal=AZURE_SUBSCRIPTION_ID='YOUR_SUBSCRIPTION_ID' \
+    --from-literal=AZURE_TENANT_ID='YOUR_TENANT_ID' \
+    --from-literal=AZURE_CLIENT_ID='YOUR_CLIENT_ID' \
+    --from-literal=AZURE_CLIENT_SECRET='YOUR_CLIENT_SECRET'
+
+# Restart ASO pods to pick up the new credentials
+kubectl rollout restart deployment azureserviceoperator-controller-manager -n azureserviceoperator-system
 ```
 
 ### Verify ASO Installation
@@ -196,10 +220,13 @@ $ helm upgrade --install aso2 aso2/azure-service-operator \
 # Check if ASO pods are running
 kubectl get pods -n azureserviceoperator-system
 
+# Verify the aso-controller-settings secret exists
+kubectl get secret aso-controller-settings -n azureserviceoperator-system
+
 # Check ASO Custom Resource Definitions
 kubectl get crd | grep azure
 
-# Check ASO operator logs
+# Check ASO operator logs for successful Azure authentication
 kubectl logs -n azureserviceoperator-system deployment/azureserviceoperator-controller-manager
 ```
 
@@ -207,6 +234,12 @@ You should see output similar to:
 ```
 NAME                                                    READY   STATUS    RESTARTS   AGE
 azureserviceoperator-controller-manager-xxxxxxxxx-xxx   2/2     Running   0          2m
+```
+
+The secret should exist:
+```
+NAME                       TYPE     DATA   AGE
+aso-controller-settings    Opaque   4      2m
 ```
 
 ### ✅ Verification Steps - Part 2
@@ -217,6 +250,10 @@ Let's verify ASO is working correctly:
 # Verify ASO pod is running and ready
 kubectl get pods -n azureserviceoperator-system
 
+# Verify the aso-controller-settings secret contains Azure credentials
+kubectl get secret aso-controller-settings -n azureserviceoperator-system
+kubectl describe secret aso-controller-settings -n azureserviceoperator-system
+
 # Check that ASO CRDs are installed
 kubectl get crd | grep azure | wc -l
 # Should show many CRDs (100+)
@@ -224,14 +261,15 @@ kubectl get crd | grep azure | wc -l
 # View some example CRDs
 kubectl get crd | grep azure | head -5
 
-# Check ASO is connected to Azure
+# Check ASO is connected to Azure and authenticated successfully
 kubectl logs -n azureserviceoperator-system deployment/azureserviceoperator-controller-manager --tail=50 | grep -i "successfully"
 ```
 
 **Expected Output:**
 - ASO pod should show 2/2 containers READY and status Running
-- Many Azure-related CRDs should be installed
-- Logs should show successful startup and Azure connection
+- The `aso-controller-settings` secret should exist with 4 data entries (AZURE_SUBSCRIPTION_ID, AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)
+- Many Azure-related CRDs should be installed (100+)
+- Logs should show successful startup and Azure authentication
 
 ### 🤔 Reflection Questions - Part 2
 
@@ -669,13 +707,27 @@ Think about what you've accomplished:
 
 ```bash
 # Check if credentials are correctly configured
-kubectl get secret -n azureserviceoperator-system
+kubectl get secret aso-controller-settings -n azureserviceoperator-system
+
+# Verify the secret has all required fields
+kubectl describe secret aso-controller-settings -n azureserviceoperator-system
 
 # Verify ASO can authenticate to Azure
 kubectl logs -n azureserviceoperator-system deployment/azureserviceoperator-controller-manager | grep -i "auth"
 
 # Solution: Verify your Service Principal credentials are correct
-# You may need to recreate the helm installation with correct credentials
+# If the secret is missing or incorrect, recreate it:
+kubectl delete secret aso-controller-settings -n azureserviceoperator-system
+
+kubectl create secret generic aso-controller-settings \
+    --namespace azureserviceoperator-system \
+    --from-literal=AZURE_SUBSCRIPTION_ID='YOUR_SUBSCRIPTION_ID' \
+    --from-literal=AZURE_TENANT_ID='YOUR_TENANT_ID' \
+    --from-literal=AZURE_CLIENT_ID='YOUR_CLIENT_ID' \
+    --from-literal=AZURE_CLIENT_SECRET='YOUR_CLIENT_SECRET'
+
+# Restart ASO to pick up the updated credentials
+kubectl rollout restart deployment azureserviceoperator-controller-manager -n azureserviceoperator-system
 ```
 
 #### Issue: Resource Creation Stuck or Failing
