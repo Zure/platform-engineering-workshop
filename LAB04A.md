@@ -125,7 +125,7 @@ curl -H "Authorization: token $GITHUB_TOKEN" \
 
 ## Part 2: Installing Backstage
 
-We'll deploy Backstage using a simplified approach suitable for the workshop environment.
+We'll deploy Backstage using the official Helm chart, which provides a simplified and production-ready approach.
 
 ### Create Namespace
 
@@ -153,154 +153,47 @@ echo "Your IP: $YOUR_IP"
 echo "Backstage will be available at: http://backstage.$YOUR_IP.nip.io"
 ```
 
-### Create Backstage Configuration
+### Add Backstage Helm Repository
 
-Create a minimal Backstage configuration focused on our workshop needs:
+First, add the official Backstage Helm chart repository:
 
 ```bash
-# Create Backstage app-config (replace variables with your values)
-cat << EOF > /tmp/backstage-app-config.yaml
-app:
-  title: Platform Engineering Workshop
-  baseUrl: http://backstage.${YOUR_IP}.nip.io
+# Add the Backstage Helm repository
+helm repo add backstage https://backstage.github.io/charts
 
-organization:
-  name: Workshop
+# Update your local Helm chart repository cache
+helm repo update
 
-backend:
-  baseUrl: http://backstage.${YOUR_IP}.nip.io
-  listen:
-    port: 7007
-  csp:
-      connect-src: ["'self'", "http:", "https:"]
-  cors:
-    origin: http://backstage.${YOUR_IP}.nip.io
-    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
-    credentials: true
-  database:
-    client: better-sqlite3
-    connection: ':memory:'
-
-integrations:
-  github:
-    - host: github.com
-      token: ${GITHUB_TOKEN}
-
-catalog:
-  import:
-    entityFilename: catalog-info.yaml
-    pullRequestBranchName: backstage-integration
-  rules:
-    - allow: [Component, System, API, Resource, Location, Template]
-  locations:
-    - type: file
-      target: /app/examples/entities.yaml
-
-scaffolder:
-  defaultAuthor:
-    name: Platform Team
-    email: platform@workshop.local
-  defaultCommitMessage: 'Requested via Backstage'
-
-auth:
-  providers:
-    guest: {}
-
-EOF
-
-# Create a Kubernetes Secret with this configuration
-kubectl create secret generic backstage-secrets \
-  --from-literal=GITHUB_TOKEN="$GITHUB_TOKEN" \
-  -n backstage
-
-# Create ConfigMap for app-config
-kubectl create configmap backstage-app-config \
-  --from-file=app-config.yaml=/tmp/backstage-app-config.yaml \
-  -n backstage
+# Verify the chart is available
+helm search repo backstage
 ```
 
-### Deploy Backstage
+### Install Backstage with Helm
 
-We'll deploy Backstage using a direct Kubernetes deployment for better control:
+Now install Backstage using the Helm chart:
 
 ```bash
-# Create Backstage deployment
-cat << EOF > /tmp/backstage-deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: backstage
-  namespace: backstage
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: backstage
-  template:
-    metadata:
-      labels:
-        app: backstage
-    spec:
-      serviceAccountName: backstage
-      containers:
-      - name: backstage
-        image: ghcr.io/backstage/backstage:latest
-        imagePullPolicy: Always
-        ports:
-        - name: http
-          containerPort: 7007
-        envFrom:
-        - secretRef:
-            name: backstage-secrets
-        volumeMounts:
-        - name: app-config
-          mountPath: /app/app-config.yaml
-          subPath: app-config.yaml
-          readOnly: true
-        resources:
-          requests:
-            memory: "512Mi"
-            cpu: "250m"
-          limits:
-            memory: "1Gi"
-            cpu: "500m"
-        livenessProbe:
-          httpGet:
-            path: /healthcheck
-            port: 7007
-          initialDelaySeconds: 60
-          periodSeconds: 10
-        readinessProbe:
-          httpGet:
-            path: /healthcheck
-            port: 7007
-          initialDelaySeconds: 30
-          periodSeconds: 10
-      volumes:
-      - name: app-config
-        configMap:
-          name: backstage-app-config
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: backstage
-  namespace: backstage
-spec:
-  selector:
-    app: backstage
-  ports:
-  - name: http
-    port: 7007
-    targetPort: 7007
-  type: ClusterIP
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: backstage
-  namespace: backstage
----
+# Install Backstage
+helm upgrade -i backstage backstage/backstage --namespace backstage
+
+# Wait for Backstage to be ready (this may take 3-5 minutes)
+echo "Waiting for Backstage to be ready..."
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=backstage -n backstage --timeout=600s
+```
+
+**Note**: The Helm chart installs Backstage with default configuration. For production use, you would customize the installation with a `values.yaml` file to configure things like:
+- GitHub integration
+- Authentication providers
+- Database backend
+- Custom plugins
+
+### Create Ingress for External Access
+
+Create an Ingress resource to make Backstage accessible from outside the cluster:
+
+```bash
+# Create Ingress configuration
+cat << EOF > /tmp/backstage-ingress.yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -311,24 +204,20 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: backstage.${YOUR_IP}.nip.io
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: backstage
-            port:
-              number: 7007
+    - host: backstage.${YOUR_IP}.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backstage
+                port:
+                  number: 7007
 EOF
 
-# Apply the deployment
-kubectl apply -f /tmp/backstage-deployment.yaml
-
-# Wait for Backstage to be ready (this may take 3-5 minutes)
-echo "Waiting for Backstage to be ready..."
-kubectl wait --for=condition=ready pod -l app=backstage -n backstage --timeout=600s
+# Apply the Ingress
+kubectl apply -f /tmp/backstage-ingress.yaml
 ```
 
 ### ✅ Verification Steps - Part 2
@@ -336,14 +225,14 @@ kubectl wait --for=condition=ready pod -l app=backstage -n backstage --timeout=6
 ```bash
 # Check Backstage pod is running
 kubectl get pods -n backstage
-kubectl logs -n backstage -l app=backstage --tail=50
+kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=50
 
 # Verify service and ingress
 kubectl get svc -n backstage
 kubectl get ingress -n backstage
 
 # Test Backstage is responding
-curl -I http://backstage.${YOUR_IP}.nip.io/healthcheck
+curl -I http://backstage.${YOUR_IP}.nip.io
 
 # Open Backstage in browser
 echo "Open Backstage at: http://backstage.${YOUR_IP}.nip.io"
@@ -351,9 +240,15 @@ echo "Open Backstage at: http://backstage.${YOUR_IP}.nip.io"
 
 **Expected Output:**
 - Backstage pod showing 1/1 READY
+- Service `backstage` available on port 7007
 - Ingress configured with your IP address
-- Healthcheck returns 200 OK
+- HTTP response (200 or 302) from Backstage URL
 - Backstage UI loads in browser
+
+**Troubleshooting Tips:**
+- If the pod doesn't start, check logs: `kubectl logs -n backstage -l app.kubernetes.io/name=backstage`
+- If ingress doesn't work, verify NGINX ingress is running: `kubectl get pods -n ingress-nginx`
+- If you get DNS errors, verify your IP is correct: `echo $YOUR_IP`
 
 ## Part 3: Creating Software Templates for Self-Service
 
@@ -915,14 +810,14 @@ curl -H "Authorization: token $GITHUB_TOKEN" \
 ```bash
 # Check pod status
 kubectl get pods -n backstage
-kubectl describe pod -n backstage -l app=backstage
+kubectl describe pod -n backstage -l app.kubernetes.io/name=backstage
 
 # Check logs
-kubectl logs -n backstage -l app=backstage --tail=100
+kubectl logs -n backstage -l app.kubernetes.io/name=backstage --tail=100
 
 # Common issues:
-# 1. Insufficient memory - increase resource limits
-# 2. GitHub token invalid - recreate secret with valid token
+# 1. Insufficient memory - increase resource limits in Helm values
+# 2. Image pull issues - check network connectivity
 # 3. ConfigMap mount issues - verify ConfigMaps exist
 ```
 
@@ -933,7 +828,7 @@ kubectl logs -n backstage -l app=backstage --tail=100
 kubectl get configmaps -n backstage | grep template
 
 # Check Backstage loaded them
-kubectl logs -n backstage -l app=backstage | grep -i "template"
+kubectl logs -n backstage -l app.kubernetes.io/name=backstage | grep -i "template"
 
 # Restart if needed
 kubectl rollout restart deployment/backstage -n backstage
@@ -942,12 +837,12 @@ kubectl rollout restart deployment/backstage -n backstage
 #### Pull Request Creation Fails
 
 ```bash
-# Verify GitHub token has correct permissions
+# Verify GitHub token has correct permissions (if configured)
 curl -H "Authorization: token $GITHUB_TOKEN" \
   https://api.github.com/user/repos | jq '.[].full_name' | grep platform-self-service
 
-# Check Backstage can reach GitHub
-kubectl logs -n backstage -l app=backstage | grep -i "github"
+# Check Backstage logs for errors
+kubectl logs -n backstage -l app.kubernetes.io/name=backstage | grep -i "github"
 
 # Verify repository name in template matches your repo
 ```
@@ -1013,7 +908,10 @@ To make this production-ready, you would:
 To remove Backstage:
 
 ```bash
-# Delete Backstage deployment
+# Uninstall Backstage using Helm
+helm uninstall backstage -n backstage
+
+# Delete the namespace
 kubectl delete namespace backstage
 
 # Remove test resources
