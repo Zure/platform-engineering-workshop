@@ -54,7 +54,65 @@ Think of resource management as a ladder:
 5. Deploy applications using your new abstractions
 6. Connect everything to ArgoCD for GitOps
 
-## Part 1: Installing Kubernetes Resource Orchestrator
+## Part 1: Updating Azure Service Operator for Additional Resources
+
+Before installing KRO, we need to update Azure Service Operator (ASO) from LAB03 to include additional CRDs that LAB04B will use.
+
+### Why Update ASO?
+
+In LAB03, ASO was installed with a limited set of CRDs for resources and storage. LAB04B introduces abstractions that use **PostgreSQL Flexible Servers** (`dbforpostgresql.azure.com`), which require additional CRDs to be enabled in ASO.
+
+### Update ASO Installation
+
+```bash
+# Update the ASO Helm installation to include PostgreSQL CRDs
+# This adds dbforpostgresql.azure.com/* to the existing CRD pattern from LAB03
+helm upgrade aso2 aso2/azure-service-operator \
+    --namespace=azureserviceoperator-system \
+    --reuse-values \
+    --set crdPattern='resources.azure.com/*;storage.azure.com/*;keyvault.azure.com/*;managedidentity.azure.com/*;dbforpostgresql.azure.com/*'
+
+# Wait for the upgrade to complete
+kubectl rollout status deployment azureserviceoperator-controller-manager -n azureserviceoperator-system
+```
+
+### Verify New CRDs are Available
+
+```bash
+# Check that PostgreSQL CRDs are now installed
+kubectl get crd | grep dbforpostgresql
+
+# Expected output should show CRDs like:
+# flexibleservers.dbforpostgresql.azure.com
+# flexibleserversdatabases.dbforpostgresql.azure.com
+# flexibleserversfirewallrules.dbforpostgresql.azure.com
+
+# Verify ASO is still running correctly
+kubectl get pods -n azureserviceoperator-system
+```
+
+**Expected Output:**
+- New PostgreSQL-related CRDs should be visible
+- ASO controller pod should be running and ready (2/2 containers)
+- No errors in the ASO controller logs
+
+### ✅ Verification Steps - ASO Update
+
+```bash
+# Verify the upgrade was successful
+helm list -n azureserviceoperator-system
+
+# Check ASO can now handle PostgreSQL resources
+kubectl get crd | grep dbforpostgresql | wc -l
+# Should show 10+ CRDs
+
+# Verify no issues with existing resources from LAB03
+kubectl get resourcegroup,storageaccount --all-namespaces
+```
+
+**Note**: Updating ASO with additional CRDs does not affect existing resources from LAB03. Your resource groups and storage accounts will continue to work normally.
+
+## Part 2: Installing Kubernetes Resource Orchestrator
 
 ### Install KRO using Helm
 
@@ -101,7 +159,7 @@ kubectl get pods -n kro
 # kro-7d98bc6f46-jvjl5        1/1     Running            0           1s
 ```
 
-### ✅ Verification Steps - Part 1
+### ✅ Verification Steps - Part 2
 
 Let's verify KRO is installed correctly:
 
@@ -126,7 +184,7 @@ kubectl api-resources | grep kro
 - The `resourcegroups.kro.run` CRD should be installed
 - KRO should be running in the `kro` namespace (not `kro-system`)
 
-### 🤔 Reflection Questions - Part 1
+### 🤔 Reflection Questions - Part 2
 
 Take a moment to think about what KRO brings to the platform:
 
@@ -140,7 +198,7 @@ Take a moment to think about what KRO brings to the platform:
 
 5. **Resource Types**: KRO creates ResourceGroups (capital G). How is this different from Azure Resource Groups? What does KRO's ResourceGroup represent?
 
-## Part 2: Understanding KRO ResourceGroups
+## Part 3: Understanding KRO ResourceGroups
 
 A KRO **ResourceGroup** (not to be confused with Azure Resource Groups) is a template that defines:
 - What custom resource developers will create (the schema)
@@ -268,7 +326,7 @@ git commit -m "Add first app using KRO abstraction"
 git push origin main
 ```
 
-### ✅ Verification Steps - Part 2
+### ✅ Verification Steps - Part 3
 
 Verify your first KRO abstraction works:
 
@@ -296,7 +354,7 @@ kubectl logs -n kro deployment/kro --tail=50
 - The developer's `my-first-app` AppNamespace should exist
 - An Azure Resource Group named `myapp-dev-rg` should be visible in both Kubernetes and Azure
 
-### 🤔 Reflection Questions - Part 2
+### 🤔 Reflection Questions - Part 3
 
 Think about what you've created:
 
@@ -312,7 +370,7 @@ Think about what you've created:
 
 6. **CRD Creation**: KRO automatically created a CRD for `AppNamespace`. Where did this CRD come from? Can you view it with `kubectl get crd`?
 
-## Part 3: Creating an AppDatabase Abstraction
+## Part 4: Creating an AppDatabase Abstraction
 
 Now let's create a more complex abstraction that provisions a complete application database with all necessary Azure resources.
 
@@ -517,7 +575,7 @@ az group show --name myapp-dev-db-rg --output table
 az postgres flexible-server list --resource-group myapp-dev-db-rg --output table
 ```
 
-### ✅ Verification Steps - Part 3
+### ✅ Verification Steps - Part 4
 
 This step will take several minutes as Azure provisions the PostgreSQL server:
 
@@ -551,7 +609,7 @@ git push origin main
 - Multiple Azure resources created: Resource Group, PostgreSQL Server, Database, Firewall Rule
 - Resources visible in both Kubernetes and Azure (after provisioning completes)
 
-### 🤔 Reflection Questions - Part 3
+### 🤔 Reflection Questions - Part 4
 
 Reflect on the AppDatabase abstraction:
 
@@ -567,7 +625,7 @@ Reflect on the AppDatabase abstraction:
 
 6. **Provisioning Time**: Azure database provisioning takes 5-10 minutes. How does this affect the developer experience? How could you communicate progress?
 
-## Part 4: Creating an AppStorage Abstraction
+## Part 5: Creating an AppStorage Abstraction
 
 Let's create another abstraction for object storage, which applications commonly need for storing files, images, or backups.
 
@@ -736,7 +794,7 @@ git commit -m "Request blob storage using AppStorage abstraction"
 git push origin main
 ```
 
-### ✅ Verification Steps - Part 4
+### ✅ Verification Steps - Part 5
 
 Verify the AppStorage abstraction works:
 
@@ -769,7 +827,7 @@ az storage container list --account-name myappdevstor --output table
 - Blob service and container configured
 - Resources visible in both Kubernetes and Azure
 
-### 🤔 Reflection Questions - Part 4
+### 🤔 Reflection Questions - Part 5
 
 Think about the AppStorage abstraction:
 
@@ -785,7 +843,7 @@ Think about the AppStorage abstraction:
 
 6. **Multi-Container Support**: Currently we create one default container. How would you extend this to allow developers to specify multiple containers?
 
-## Part 5: Integrating KRO Abstractions with ArgoCD
+## Part 6: Integrating KRO Abstractions with ArgoCD
 
 Now let's connect our KRO abstractions to ArgoCD for full GitOps workflow.
 
@@ -838,35 +896,71 @@ kubectl apply -f /tmp/platform-abstractions-project.yaml
 argocd proj get platform-abstractions
 ```
 
-### Create ArgoCD Applications
+### Create ArgoCD ApplicationSet
+
+Now create an ArgoCD ApplicationSet that monitors your GitHub repository and automatically deploys KRO abstractions and developer resources. This follows the same pattern as LAB03's Azure resources management.
 
 ```bash
-# Create application for KRO definitions (platform team manages)
-argocd app create kro-definitions \
-  --project platform-abstractions \
-  --repo https://github.com/$GITHUB_USERNAME/platform-self-service.git \
-  --path kro-definitions \
-  --dest-server https://kubernetes.default.svc \
-  --dest-namespace default \
-  --sync-policy automated \
-  --auto-prune \
-  --self-heal
+# Create the platform abstractions ApplicationSet
+# Replace $GITHUB_USERNAME with your GitHub username
+cat << EOF > /tmp/platform-abstractions-applicationset.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-abstractions
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/$GITHUB_USERNAME/platform-self-service.git
+        revision: HEAD
+        directories:
+          - path: kro-definitions
+          - path: developer-resources
+  template:
+    metadata:
+      name: 'kro-{{path.basename}}'
+    spec:
+      project: platform-abstractions
+      source:
+        repoURL: https://github.com/$GITHUB_USERNAME/platform-self-service.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: default
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=false
+EOF
 
-# Create application for developer resources (developers can request via PR)
-argocd app create developer-resources \
-  --project platform-abstractions \
-  --repo https://github.com/$GITHUB_USERNAME/platform-self-service.git \
-  --path developer-resources \
-  --dest-server https://kubernetes.default.svc \
-  --dest-namespace default \
-  --sync-policy automated \
-  --auto-prune \
-  --self-heal
+# Apply the ApplicationSet
+kubectl apply -f /tmp/platform-abstractions-applicationset.yaml
 
-# Check application status
-argocd app get kro-definitions
-argocd app get developer-resources
+# Check the ApplicationSet was created
+kubectl get applicationset -n argocd | grep platform-abstractions
+
+# The ApplicationSet will automatically generate Applications for kro-definitions and developer-resources
+# Check which applications were generated
+argocd app list | grep kro
+
+# Watch the generated applications sync
+# You'll see applications like: kro-kro-definitions, kro-developer-resources
+argocd app get kro-kro-definitions
+argocd app get kro-developer-resources
 ```
+
+**Why use an ApplicationSet instead of individual Applications?**
+
+The ApplicationSet approach provides several benefits:
+1. **Automatic Discovery**: When you add new directories (e.g., `kro-advanced/`), ArgoCD automatically generates applications for them
+2. **Better Organization**: Each directory is managed as a separate application, making it easier to track sync status
+3. **Scalability**: As your platform grows, you don't need to manually create new ArgoCD applications
+4. **Consistency**: All generated applications follow the same pattern defined in the ApplicationSet template
+5. **Similar to LAB03**: This follows the same pattern used for Azure resources in LAB03, providing a consistent experience
 
 ### Verify GitOps Workflow
 
@@ -883,7 +977,7 @@ argocd app get developer-resources
 # You should see both applications with their resources
 ```
 
-### ✅ Verification Steps - Part 5
+### ✅ Verification Steps - Part 6
 
 Verify the complete GitOps integration:
 
@@ -891,10 +985,13 @@ Verify the complete GitOps integration:
 # Verify ArgoCD project
 argocd proj get platform-abstractions
 
-# Verify both applications exist and are healthy
-argocd app list | grep platform-abstractions
-argocd app get kro-definitions
-argocd app get developer-resources
+# Verify the ApplicationSet exists
+kubectl get applicationset platform-abstractions -n argocd
+
+# Verify generated applications exist and are healthy
+argocd app list | grep kro
+argocd app get kro-kro-definitions
+argocd app get kro-developer-resources
 
 # Check that resources are synced
 kubectl get resourcegroup -n default
@@ -907,15 +1004,16 @@ kubectl get appdatabase,appstorage,appnamespace -n default
 
 **Expected Output:**
 - ArgoCD project `platform-abstractions` exists
-- Two applications: `kro-definitions` and `developer-resources`
+- ApplicationSet `platform-abstractions` exists
+- Two generated applications: `kro-kro-definitions` and `kro-developer-resources`
 - Both applications show "Healthy" and "Synced" status
 - All KRO ResourceGroups and developer resources visible in ArgoCD
 
-### 🤔 Reflection Questions - Part 5
+### 🤔 Reflection Questions - Part 6
 
 Consider the complete platform:
 
-1. **Separation of Concerns**: We created separate ArgoCD applications for `kro-definitions` (platform) and `developer-resources` (developers). Why separate these?
+1. **Separation of Concerns**: The ApplicationSet generates separate applications for `kro-definitions` (platform) and `developer-resources` (developers). Why separate these?
 
 2. **Self-Service Workflow**: How would a developer request a new database now? Walk through the complete workflow from request to provisioned resource.
 
@@ -927,7 +1025,9 @@ Consider the complete platform:
 
 6. **Multi-Environment**: How would you extend this setup to support dev, staging, and prod environments with different configurations?
 
-## Part 6: Testing the Complete Platform
+7. **ApplicationSet Pattern**: How does using ApplicationSet (like in LAB03) make the platform more maintainable compared to individual Applications?
+
+## Part 7: Testing the Complete Platform
 
 Let's test the complete self-service workflow.
 
@@ -990,8 +1090,8 @@ git push origin main
 
 ```bash
 # ArgoCD will detect the change and sync automatically
-# Watch the sync happen
-argocd app get developer-resources --watch
+# Watch the sync happen (using the generated application name)
+argocd app get kro-developer-resources --watch
 
 # Check resources being created
 kubectl get appdatabase,appstorage --watch
@@ -1016,10 +1116,10 @@ az postgres flexible-server list --output table | grep newteam
 az storage account list --output table | grep newteam
 
 # Check ArgoCD application status
-argocd app get developer-resources
+argocd app get kro-developer-resources
 ```
 
-### ✅ Verification Steps - Part 6
+### ✅ Verification Steps - Part 7
 
 Verify the complete self-service workflow:
 
@@ -1028,8 +1128,8 @@ Verify the complete self-service workflow:
 cd ~/platform-self-service
 git log --oneline -5
 
-# Check ArgoCD synced the changes
-argocd app get developer-resources | grep -A 5 "Sync Status"
+# Check ArgoCD synced the changes (using generated application name)
+argocd app get kro-developer-resources | grep -A 5 "Sync Status"
 
 # Verify both AppDatabase and AppStorage were created
 kubectl get appdatabase newteam-database -o yaml
@@ -1048,12 +1148,12 @@ az storage account list --output table | grep newteam
 
 **Expected Output:**
 - Git commit visible in repository history
-- ArgoCD application synced successfully
+- ArgoCD application `kro-developer-resources` synced successfully
 - Two resources: newteam-database and newteam-storage
 - Multiple Azure resources created for each abstraction
 - Resources visible in both Kubernetes and Azure Portal
 
-### 🤔 Reflection Questions - Part 6
+### 🤔 Reflection Questions - Part 7
 
 Reflect on the complete platform:
 
@@ -1069,7 +1169,7 @@ Reflect on the complete platform:
 
 6. **Approval Workflow**: In production, you might want approval before provisioning expensive resources. How could you add an approval gate to this GitOps workflow?
 
-## Part 7: Advanced Patterns and Best Practices
+## Part 8: Advanced Patterns and Best Practices
 
 ### Adding Validation to Abstractions
 
@@ -1304,9 +1404,12 @@ kubectl get resourcegroup --watch
 # Delete KRO ResourceGroups
 kubectl delete resourcegroup appnamespace appdatabase appstorage -n default
 
-# Delete ArgoCD applications
-argocd app delete kro-definitions --cascade
-argocd app delete developer-resources --cascade
+# Delete ArgoCD ApplicationSet (this will remove all generated applications)
+kubectl delete applicationset platform-abstractions -n argocd
+
+# Alternatively, delete individual generated applications
+# argocd app delete kro-kro-definitions --cascade
+# argocd app delete kro-developer-resources --cascade
 
 # Delete ArgoCD project
 kubectl delete appproject platform-abstractions -n argocd
@@ -1339,8 +1442,9 @@ kubectl get resourcegroup,flexibleserver,storageaccount | grep -E "(myapp|newtea
 # Verify in Azure
 az group list --output table | grep -E "(myapp|newteam)"
 
-# Check ArgoCD applications
-argocd app list | grep platform-abstractions
+# Check ArgoCD ApplicationSet and generated applications
+kubectl get applicationset platform-abstractions -n argocd
+argocd app list | grep kro
 
 # Verify GitOps is working
 cd ~/platform-self-service
