@@ -1,0 +1,5 @@
+# CODEOWNERS file for platform-engineering-workshop
+# These owners will be the default owners for everything in the repo
+# They will be requested for review when someone opens a pull request
+
+* @cvs79 @geertvdc
