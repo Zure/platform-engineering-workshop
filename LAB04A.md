@@ -99,6 +99,10 @@ mkdir -p templates/namespaces
 mkdir -p templates/azure-storage
 mkdir -p templates/helpers
 
+# Verify the structure matches the expected layout for azure-resources
+# Azure resources should be organized by team: azure-resources/{teamname}/*.yaml
+mkdir -p azure-resources/example-team
+
 # Verify structure
 tree templates/ || ls -R templates/
 ```
@@ -181,7 +185,7 @@ cat << 'EOF' > templates/azure-storage/storage-template.yaml
 # Azure Storage Account Request Template
 #
 # Instructions:
-# 1. Copy this file to: azure-resources/storage-accounts/{your-storage-name}.yaml
+# 1. Copy this file to: azure-resources/{your-team-name}/{your-storage-name}.yaml
 # 2. Replace all {{PLACEHOLDERS}} with your values
 # 3. Commit and push to create a PR
 # 4. After PR approval and merge, ArgoCD and ASO will create your storage account
@@ -270,6 +274,8 @@ Request an Azure Storage Account for your team.
 - `SKU`: Standard_LRS or Standard_GRS
 - `DATE`: Request date (YYYY-MM-DD)
 
+**File Location**: `azure-resources/{TEAM_NAME}/{STORAGE_NAME}.yaml`
+
 ## How to Use Templates
 
 ### Manual Method
@@ -292,12 +298,16 @@ platform-self-service/
 │   ├── staging/
 │   └── prod/
 ├── azure-resources/
-│   └── storage-accounts/
+│   ├── team-alpha/
+│   ├── team-beta/
+│   └── team-gamma/
 └── templates/
     ├── namespaces/
     ├── azure-storage/
     └── helpers/
 ```
+
+**Note**: Azure resources are organized by team name under `azure-resources/`, where each team has their own directory containing their YAML resource definitions.
 
 ## Support
 
@@ -511,7 +521,7 @@ fi
 DATE=$(date +%Y-%m-%d)
 
 # Generate YAML
-OUTPUT_DIR="../azure-resources/storage-accounts"
+OUTPUT_DIR="../azure-resources/${TEAM_NAME}"
 OUTPUT_FILE="${OUTPUT_DIR}/${STORAGE_NAME}.yaml"
 
 # Create directory if it doesn't exist
@@ -1110,7 +1120,7 @@ cat << 'EOF' > templates/helpers/self-service-ui.html
                     <h4>Manual Steps (if not using auto-commit):</h4>
                     <ol>
                         <li>Copy the YAML above</li>
-                        <li>Save it to: <code>azure-resources/storage-accounts/<span id="st-name-path"></span>.yaml</code></li>
+                        <li>Save it to: <code>azure-resources/<span id="st-team-path"></span>/<span id="st-name-path"></span>.yaml</code></li>
                         <li>Commit and push to your platform-self-service repository</li>
                         <li>Create a Pull Request on GitHub</li>
                         <li>After approval and merge, ArgoCD and ASO will create your storage account</li>
@@ -1458,11 +1468,12 @@ spec:
 
             document.getElementById('st-yaml').textContent = yaml;
             document.getElementById('st-output').style.display = 'block';
+            document.getElementById('st-team-path').textContent = team;
             document.getElementById('st-name-path').textContent = name;
 
             // Store YAML for GitHub integration
             currentStorageYAML = yaml;
-            currentStorageFilePath = `azure-resources/storage-accounts/${name}.yaml`;
+            currentStorageFilePath = `azure-resources/${team}/${name}.yaml`;
 
             // Update button states
             updateCommitButtonStates();
@@ -1912,21 +1923,21 @@ Let's test requesting Azure storage using the web UI:
 3. **Generate and save the YAML**:
    ```bash
    cd ~/platform-self-service
-   mkdir -p azure-resources/storage-accounts
+   mkdir -p azure-resources/testteam
 
    # Save the generated YAML to the file
-   nano azure-resources/storage-accounts/testteamstorage001.yaml
+   nano azure-resources/testteam/testteamstorage001.yaml
 
    # Commit and push
-   git add azure-resources/storage-accounts/testteamstorage001.yaml
+   git add azure-resources/testteam/testteamstorage001.yaml
    git commit -m "Request Azure storage account for testteam"
    git push origin main
    ```
 
 4. **Watch ArgoCD sync and ASO create resources**:
    ```bash
-   # Sync ArgoCD application
-   argocd app sync azure-storage-accounts
+   # Sync ArgoCD application (assuming it's configured for azure-resources)
+   argocd app sync azure-resources
 
    # Watch resources being created
    kubectl get resourcegroup,storageaccount --watch
