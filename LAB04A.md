@@ -57,11 +57,14 @@ All three approaches integrate seamlessly with your GitOps workflow from LAB02.
 
 ### Lab Architecture
 
+```mermaid
+graph LR
+    A["Developer"] --> B["Simple Web UI / CLI</br>(Easy interface)"]
+    B --> C["YAML Templates</br>(Generated)"]
+    C --> D["Git Commit</br>(platform-self-service repo)"]
+    D --> E["ArgoCD</br>(Sync)"]
+    E --> F["Kubernetes / Azure"]
 ```
-Developer → Simple Web UI / CLI → YAML Templates → Git Commit → ArgoCD → Kubernetes/Azure
-            (Easy interface)      (Generated)     (platform-self-service repo)  (Sync)
-```
-
 ### Lab Flow
 
 1. Set up YAML templates for common resource requests
@@ -676,7 +679,7 @@ git push origin main
 
 ## Part 3: Simple Web UI (Option B)
 
-For teams that prefer a web interface, we can deploy a lightweight HTML form that generates YAML. This is much simpler and more reliable than Backstage.
+For teams that prefer a web interface, we can deploy a lightweight HTML form that generates YAML. For the purposes of this lab, we'll create a static HTML file that can be served via a simple web server or ingress.
 
 ### Create the Web UI
 

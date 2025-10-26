@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platform Self-Service Portal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: #2d3748;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #a0aec0;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            background: #edf2f7;
+            border-bottom: 2px solid #cbd5e0;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            background: #edf2f7;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            color: #4a5568;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            background: #e2e8f0;
+        }
+
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e2e8f0;
+            border-radius: 5px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .help-text {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 5px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5a67d8;
+        }
+
+        .output {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 5px;
+            border: 2px solid #e2e8f0;
+        }
+
+        .output h3 {
+            margin-bottom: 10px;
+            color: #2d3748;
+        }
+
+        pre {
+            background: #2d3748;
+            color: #68d391;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .copy-btn {
+            background: #48bb78;
+            margin-top: 10px;
+        }
+
+        .copy-btn:hover {
+            background: #38a169;
+        }
+
+        .instructions {
+            background: #ebf8ff;
+            border-left: 4px solid #4299e1;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 0 5px 5px 0;
+        }
+
+        .instructions h4 {
+            color: #2c5282;
+            margin-bottom: 10px;
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+            color: #2d3748;
+        }
+
+        .instructions li {
+            margin-bottom: 5px;
+        }
+
+        .github-config {
+            background: #f0fff4;
+            border: 2px solid #48bb78;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .config-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: end;
+        }
+
+        .config-row .form-group {
+            flex: 1;
+            margin-bottom: 0;
+        }
+
+        .config-row button {
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+
+        .status-message {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: 600;
+        }
+
+        .status-success {
+            background: #c6f6d5;
+            border: 1px solid #48bb78;
+            color: #22543d;
+        }
+
+        .status-error {
+            background: #fed7d7;
+            border: 1px solid #e53e3e;
+            color: #742a2a;
+        }
+
+        .status-info {
+            background: #bee3f8;
+            border: 1px solid #3182ce;
+            color: #2a4365;
+        }
+
+        .auto-commit-section {
+            background: #fefcbf;
+            border: 2px solid #d69e2e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .auto-commit-section h4 {
+            color: #744210;
+            margin-bottom: 15px;
+        }
+
+        .commit-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .commit-btn {
+            background: #d69e2e;
+            color: white;
+        }
+
+        .commit-btn:hover {
+            background: #b7791f;
+        }
+
+        .commit-btn:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+
+        .pr-btn {
+            background: #805ad5;
+            color: white;
+        }
+
+        .pr-btn:hover {
+            background: #6b46c1;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Platform Self-Service Portal</h1>
+            <p class="subtitle">Request namespaces and Azure resources with ease</p>
+        </header>
+
+        <!-- GitHub Configuration Section -->
+        <div class="github-config">
+            <h3>🔧 GitHub Integration Setup</h3>
+            <p>Configure your GitHub settings to enable automatic commits and PR creation.</p>
+
+            <div class="config-row">
+                <div class="form-group">
+                    <label>GitHub Username</label>
+                    <input type="text" id="gh-username" placeholder="your-username">
+                </div>
+                <div class="form-group">
+                    <label>Repository Name</label>
+                    <input type="text" id="gh-repo" placeholder="platform-self-service">
+                </div>
+                <div class="form-group">
+                    <label>Personal Access Token</label>
+                    <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxx">
+                    <div class="help-text">Token needs 'repo' scope. <a href="https://github.com/settings/tokens"
+                            target="_blank">Create one here</a></div>
+                </div>
+                <button onclick="testGitHubConnection()">Test Connection</button>
+            </div>
+
+            <div id="gh-status"></div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('namespace')">Namespace Request</button>
+            <button class="tab" onclick="showTab('storage')">Azure Storage</button>
+        </div>
+
+        <!-- Namespace Tab -->
+        <div id="namespace" class="tab-content active">
+            <h2>Request Kubernetes Namespace</h2>
+            <form onsubmit="generateNamespaceYAML(event)">
+                <div class="form-group">
+                    <label>Team Name *</label>
+                    <input type="text" id="ns-team" required pattern="[a-z0-9-]+" placeholder="frontend">
+                    <div class="help-text">Lowercase letters, numbers, and hyphens only</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Environment *</label>
+                    <select id="ns-env" required>
+                        <option value="dev">Development</option>
+                        <option value="staging">Staging</option>
+                        <option value="prod">Production</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Contact Email *</label>
+                    <input type="email" id="ns-email" required placeholder="team@company.com">
+                </div>
+
+                <div class="form-group">
+                    <label>Purpose *</label>
+                    <textarea id="ns-purpose" required placeholder="What will this namespace be used for?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>CPU Cores *</label>
+                    <select id="ns-cpu" required>
+                        <option value="1">1 core</option>
+                        <option value="2" selected>2 cores</option>
+                        <option value="4">4 cores</option>
+                        <option value="8">8 cores</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Memory (GB) *</label>
+                    <select id="ns-memory" required>
+                        <option value="2">2 GB</option>
+                        <option value="4" selected>4 GB</option>
+                        <option value="8">8 GB</option>
+                        <option value="16">16 GB</option>
+                    </select>
+                </div>
+
+                <button type="submit">Generate YAML</button>
+            </form>
+
+            <div id="ns-output" style="display:none;" class="output">
+                <h3>Generated YAML</h3>
+                <pre id="ns-yaml"></pre>
+                <button class="copy-btn" onclick="copyToClipboard('ns-yaml')">📋 Copy to Clipboard</button>
+
+                <div class="auto-commit-section">
+                    <h4>🚀 Automatic GitHub Integration</h4>
+                    <p>Skip the manual copy-paste! Let the portal commit directly to your repository.</p>
+
+                    <div class="commit-controls">
+                        <button class="commit-btn" onclick="commitNamespaceToGithub()" id="ns-commit-btn" disabled>
+                            📝 Commit to GitHub
+                        </button>
+                        <button class="pr-btn" onclick="createNamespacePR()" id="ns-pr-btn" disabled>
+                            🔀 Create Pull Request
+                        </button>
+                    </div>
+
+                    <div id="ns-commit-status"></div>
+                </div>
+
+                <div class="instructions">
+                    <h4>Manual Steps (if not using auto-commit):</h4>
+                    <ol>
+                        <li>Copy the YAML above</li>
+                        <li>Save it to:
+                            <code>namespaces/<span id="ns-env-path"></span>/<span id="ns-team-path"></span>-namespace.yaml</code>
+                        </li>
+                        <li>Commit and push to your platform-self-service repository</li>
+                        <li>Create a Pull Request on GitHub</li>
+                        <li>After approval and merge, ArgoCD will create your namespace</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+
+        <!-- Storage Tab -->
+        <div id="storage" class="tab-content">
+            <h2>Request Azure Storage Account</h2>
+            <form onsubmit="generateStorageYAML(event)">
+                <div class="form-group">
+                    <label>Team Name *</label>
+                    <input type="text" id="st-team" required pattern="[a-z0-9-]+" placeholder="frontend">
+                    <div class="help-text">Lowercase letters, numbers, and hyphens only</div>
+                </div>
+
+                <div class="form-group">
+                    <label>Environment *</label>
+                    <select id="st-env" required>
+                        <option value="dev">Development</option>
+                        <option value="staging">Staging</option>
+                        <option value="prod">Production</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Storage Account Name *</label>
+                    <input type="text" id="st-name" required pattern="[a-z0-9]{3,24}" placeholder="myteamstorage001">
+                    <div class="help-text">3-24 characters, lowercase letters and numbers only. Must be globally unique!
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Purpose *</label>
+                    <textarea id="st-purpose" required placeholder="What will this storage be used for?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Azure Region *</label>
+                    <select id="st-region" required>
+                        <option value="swedencentral" selected>Sweden Central</option>
+                        <option value="westeurope">West Europe</option>
+                        <option value="northeurope">North Europe</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Redundancy Level *</label>
+                    <select id="st-sku" required>
+                        <option value="Standard_LRS" selected>Standard Locally Redundant (LRS)</option>
+                        <option value="Standard_GRS">Standard Geo-Redundant (GRS)</option>
+                    </select>
+                </div>
+
+                <button type="submit">Generate YAML</button>
+            </form>
+
+            <div id="st-output" style="display:none;" class="output">
+                <h3>Generated YAML</h3>
+                <pre id="st-yaml"></pre>
+                <button class="copy-btn" onclick="copyToClipboard('st-yaml')">📋 Copy to Clipboard</button>
+
+                <div class="auto-commit-section">
+                    <h4>🚀 Automatic GitHub Integration</h4>
+                    <p>Skip the manual copy-paste! Let the portal commit directly to your repository.</p>
+
+                    <div class="commit-controls">
+                        <button class="commit-btn" onclick="commitStorageToGithub()" id="st-commit-btn" disabled>
+                            📝 Commit to GitHub
+                        </button>
+                        <button class="pr-btn" onclick="createStoragePR()" id="st-pr-btn" disabled>
+                            🔀 Create Pull Request
+                        </button>
+                    </div>
+
+                    <div id="st-commit-status"></div>
+                </div>
+
+                <div class="instructions">
+                    <h4>Manual Steps (if not using auto-commit):</h4>
+                    <ol>
+                        <li>Copy the YAML above</li>
+                        <li>Save it to:
+                            <code>azure-resources/<span id="st-team-path"></span>/<span id="st-name-path"></span>.yaml</code>
+                        </li>
+                        <li>Commit and push to your platform-self-service repository</li>
+                        <li>Create a Pull Request on GitHub</li>
+                        <li>After approval and merge, ArgoCD and ASO will create your storage account</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables for generated YAML content
+        let currentNamespaceYAML = '';
+        let currentNamespaceFilePath = '';
+        let currentStorageYAML = '';
+        let currentStorageFilePath = '';
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        // GitHub API Helper Functions
+        function getGitHubConfig() {
+            return {
+                username: document.getElementById('gh-username').value,
+                repo: document.getElementById('gh-repo').value,
+                token: document.getElementById('gh-token').value
+            };
+        }
+
+        function updateStatus(elementId, message, type = 'info') {
+            const statusDiv = document.getElementById(elementId);
+            statusDiv.innerHTML = `<div class="status-message status-${type}">${message}</div>`;
+        }
+
+        async function testGitHubConnection() {
+            const config = getGitHubConfig();
+
+            if (!config.username || !config.repo || !config.token) {
+                updateStatus('gh-status', '❌ Please fill in all GitHub configuration fields', 'error');
+                return;
+            }
+
+            updateStatus('gh-status', '🔄 Testing GitHub connection...', 'info');
+
+            try {
+                const response = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}`, {
+                    headers: {
+                        'Authorization': `token ${config.token}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (response.ok) {
+                    const repo = await response.json();
+                    updateStatus('gh-status', `✅ Connected to ${repo.full_name} (${repo.default_branch} branch)`, 'success');
+
+                    // Enable commit buttons
+                    updateCommitButtonStates();
+                } else if (response.status === 404) {
+                    updateStatus('gh-status', '❌ Repository not found. Check username and repository name.', 'error');
+                } else if (response.status === 401) {
+                    updateStatus('gh-status', '❌ Authentication failed. Check your personal access token.', 'error');
+                } else {
+                    updateStatus('gh-status', `❌ Error: ${response.status} ${response.statusText}`, 'error');
+                }
+            } catch (error) {
+                updateStatus('gh-status', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+
+        function updateCommitButtonStates() {
+            const config = getGitHubConfig();
+            const isConfigured = config.username && config.repo && config.token;
+
+            // Update namespace buttons
+            const nsCommitBtn = document.getElementById('ns-commit-btn');
+            const nsPrBtn = document.getElementById('ns-pr-btn');
+            if (nsCommitBtn) {
+                nsCommitBtn.disabled = !isConfigured || !currentNamespaceYAML;
+            }
+            if (nsPrBtn) {
+                nsPrBtn.disabled = !isConfigured || !currentNamespaceYAML;
+            }
+
+            // Update storage buttons
+            const stCommitBtn = document.getElementById('st-commit-btn');
+            const stPrBtn = document.getElementById('st-pr-btn');
+            if (stCommitBtn) {
+                stCommitBtn.disabled = !isConfigured || !currentStorageYAML;
+            }
+            if (stPrBtn) {
+                stPrBtn.disabled = !isConfigured || !currentStorageYAML;
+            }
+        }
+
+        async function commitFileToGitHub(filePath, content, commitMessage, statusElementId) {
+            const config = getGitHubConfig();
+
+            updateStatus(statusElementId, '🔄 Committing to GitHub...', 'info');
+
+            try {
+                // First, get the current file (if it exists) to get its SHA
+                let sha = null;
+                try {
+                    const existingResponse = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}/contents/${filePath}`, {
+                        headers: {
+                            'Authorization': `token ${config.token}`,
+                            'Accept': 'application/vnd.github.v3+json'
+                        }
+                    });
+                    if (existingResponse.ok) {
+                        const existingFile = await existingResponse.json();
+                        sha = existingFile.sha;
+                    }
+                } catch (e) {
+                    // File doesn't exist, which is fine for new files
+                }
+
+                // Commit the file
+                const commitData = {
+                    message: commitMessage,
+                    content: btoa(unescape(encodeURIComponent(content))), // Base64 encode with UTF-8 support
+                    branch: 'main'
+                };
+
+                if (sha) {
+                    commitData.sha = sha; // Include SHA if updating existing file
+                }
+
+                const response = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}/contents/${filePath}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${config.token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(commitData)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    updateStatus(statusElementId,
+                        `✅ File committed successfully! <a href="${result.content.html_url}" target="_blank">View on GitHub</a>`,
+                        'success'
+                    );
+                    return result;
+                } else {
+                    const error = await response.json();
+                    updateStatus(statusElementId,
+                        `❌ Commit failed: ${error.message || response.statusText}`,
+                        'error'
+                    );
+                    return null;
+                }
+            } catch (error) {
+                updateStatus(statusElementId, `❌ Error: ${error.message}`, 'error');
+                return null;
+            }
+        }
+
+        async function createPullRequest(title, body, statusElementId) {
+            const config = getGitHubConfig();
+
+            updateStatus(statusElementId, '🔄 Creating pull request...', 'info');
+
+            try {
+                const prData = {
+                    title: title,
+                    body: body,
+                    head: 'main',
+                    base: 'main'
+                };
+
+                const response = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}/pulls`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `token ${config.token}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(prData)
+                });
+
+                if (response.ok) {
+                    const pr = await response.json();
+                    updateStatus(statusElementId,
+                        `✅ Pull request created! <a href="${pr.html_url}" target="_blank">View PR #${pr.number}</a>`,
+                        'success'
+                    );
+                } else if (response.status === 422) {
+                    // PR might already exist or no changes to create PR
+                    updateStatus(statusElementId,
+                        '⚠️ Pull request could not be created. Changes may already be on main branch or PR already exists.',
+                        'info'
+                    );
+                } else {
+                    const error = await response.json();
+                    updateStatus(statusElementId,
+                        `❌ PR creation failed: ${error.message || response.statusText}`,
+                        'error'
+                    );
+                }
+            } catch (error) {
+                updateStatus(statusElementId, `❌ Error: ${error.message}`, 'error');
+            }
+        } function generateNamespaceYAML(event) {
+            event.preventDefault();
+
+            const team = document.getElementById('ns-team').value;
+            const env = document.getElementById('ns-env').value;
+            const email = document.getElementById('ns-email').value;
+            const purpose = document.getElementById('ns-purpose').value;
+            const cpu = document.getElementById('ns-cpu').value;
+            const memory = document.getElementById('ns-memory').value;
+            const cpuLimit = cpu * 2;
+            const memoryLimit = memory * 2;
+            const date = new Date().toISOString().split('T')[0];
+
+            const yaml = `# Kubernetes Namespace Request
+# Team: ${team}
+# Environment: ${env}
+# Requested: ${date}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: devops-${team}-${env}
+  labels:
+    team: ${team}
+    environment: ${env}
+    managed-by: platform-team
+    created-via: self-service
+  annotations:
+    team.contact: "${email}"
+    purpose: "${purpose}"
+    requested-date: "${date}"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: ${team}-${env}-quota
+  namespace: devops-${team}-${env}
+spec:
+  hard:
+    requests.cpu: "${cpu}"
+    requests.memory: "${memory}Gi"
+    limits.cpu: "${cpuLimit}"
+    limits.memory: "${memoryLimit}Gi"
+    persistentvolumeclaims: "5"
+    services: "10"
+    pods: "20"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: ${team}-${env}-limits
+  namespace: devops-${team}-${env}
+spec:
+  limits:
+  - default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container`;
+
+            document.getElementById('ns-yaml').textContent = yaml;
+            document.getElementById('ns-output').style.display = 'block';
+            document.getElementById('ns-env-path').textContent = env;
+            document.getElementById('ns-team-path').textContent = team;
+
+            // Store YAML for GitHub integration
+            currentNamespaceYAML = yaml;
+            currentNamespaceFilePath = `namespaces/${env}/${team}-namespace.yaml`;
+
+            // Update button states
+            updateCommitButtonStates();
+
+            // Scroll to output
+            document.getElementById('ns-output').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function generateStorageYAML(event) {
+            event.preventDefault();
+
+            const team = document.getElementById('st-team').value;
+            const env = document.getElementById('st-env').value;
+            const name = document.getElementById('st-name').value;
+            const purpose = document.getElementById('st-purpose').value;
+            const region = document.getElementById('st-region').value;
+            const sku = document.getElementById('st-sku').value;
+            const date = new Date().toISOString().split('T')[0];
+
+            const yaml = `# Azure Storage Account Request
+# Team: ${team}
+# Environment: ${env}
+# Requested: ${date}
+---
+# Resource Group for Storage
+apiVersion: resources.azure.com/v1api20200601
+kind: ResourceGroup
+metadata:
+  name: ${team}-${env}-storage-rg
+  namespace: default
+spec:
+  location: ${region}
+  tags:
+    team: ${team}
+    environment: ${env}
+    resource-type: storage
+    managed-by: platform-team
+    created-via: self-service
+    requested-date: "${date}"
+---
+# Storage Account
+apiVersion: storage.azure.com/v1api20230101
+kind: StorageAccount
+metadata:
+  name: ${name}
+  namespace: default
+spec:
+  location: ${region}
+  kind: StorageV2
+  sku:
+    name: ${sku}
+  owner:
+    name: ${team}-${env}-storage-rg
+  accessTier: Hot
+  minimumTlsVersion: TLS1_2
+  supportsHttpsTrafficOnly: true
+  allowBlobPublicAccess: false
+  tags:
+    team: ${team}
+    environment: ${env}
+    purpose: "${purpose}"
+    managed-by: platform-team
+    created-via: self-service`;
+
+            document.getElementById('st-yaml').textContent = yaml;
+            document.getElementById('st-output').style.display = 'block';
+            document.getElementById('st-team-path').textContent = team;
+            document.getElementById('st-name-path').textContent = name;
+
+            // Store YAML for GitHub integration
+            currentStorageYAML = yaml;
+            currentStorageFilePath = `azure-resources/${team}/${name}.yaml`;
+
+            // Update button states
+            updateCommitButtonStates();
+
+            // Scroll to output
+            document.getElementById('st-output').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                // Show feedback
+                event.target.textContent = '✅ Copied!';
+                setTimeout(() => {
+                    event.target.textContent = '📋 Copy to Clipboard';
+                }, 2000);
+            });
+        }
+
+        // GitHub Integration Functions
+        async function commitNamespaceToGithub() {
+            if (!currentNamespaceYAML) {
+                updateStatus('ns-commit-status', '❌ No YAML to commit. Generate YAML first.', 'error');
+                return;
+            }
+
+            const team = document.getElementById('ns-team').value;
+            const env = document.getElementById('ns-env').value;
+            const email = document.getElementById('ns-email').value;
+            const purpose = document.getElementById('ns-purpose').value;
+
+            const commitMessage = `Request namespace for ${team} in ${env} environment
+
+Requested by: ${email}
+Purpose: ${purpose}
+Generated via: Self-Service Portal`;
+
+            await commitFileToGitHub(currentNamespaceFilePath, currentNamespaceYAML, commitMessage, 'ns-commit-status');
+        }
+
+        async function createNamespacePR() {
+            if (!currentNamespaceYAML) {
+                updateStatus('ns-commit-status', '❌ No YAML to create PR with. Generate YAML first.', 'error');
+                return;
+            }
+
+            const team = document.getElementById('ns-team').value;
+            const env = document.getElementById('ns-env').value;
+            const email = document.getElementById('ns-email').value;
+            const purpose = document.getElementById('ns-purpose').value;
+
+            const title = `Request namespace: devops-${team}-${env}`;
+            const body = `## Namespace Request
+
+**Team:** ${team}
+**Environment:** ${env}
+**Contact:** ${email}
+**Purpose:** ${purpose}
+
+### Resources Requested
+- CPU: ${document.getElementById('ns-cpu').value} cores
+- Memory: ${document.getElementById('ns-memory').value} GB
+
+### Generated Resources
+- Namespace: \`devops-${team}-${env}\`
+- ResourceQuota: CPU and memory limits
+- LimitRange: Default container limits
+
+This request was generated using the Self-Service Portal.
+
+/cc @platform-team`;
+
+            await createPullRequest(title, body, 'ns-commit-status');
+        }
+
+        async function commitStorageToGithub() {
+            if (!currentStorageYAML) {
+                updateStatus('st-commit-status', '❌ No YAML to commit. Generate YAML first.', 'error');
+                return;
+            }
+
+            const team = document.getElementById('st-team').value;
+            const env = document.getElementById('st-env').value;
+            const name = document.getElementById('st-name').value;
+            const purpose = document.getElementById('st-purpose').value;
+
+            const commitMessage = `Request Azure storage account ${name}
+
+Team: ${team}
+Environment: ${env}
+Purpose: ${purpose}
+Generated via: Self-Service Portal`;
+
+            await commitFileToGitHub(currentStorageFilePath, currentStorageYAML, commitMessage, 'st-commit-status');
+        }
+
+        async function createStoragePR() {
+            if (!currentStorageYAML) {
+                updateStatus('st-commit-status', '❌ No YAML to create PR with. Generate YAML first.', 'error');
+                return;
+            }
+
+            const team = document.getElementById('st-team').value;
+            const env = document.getElementById('st-env').value;
+            const name = document.getElementById('st-name').value;
+            const purpose = document.getElementById('st-purpose').value;
+            const region = document.getElementById('st-region').value;
+            const sku = document.getElementById('st-sku').value;
+
+            const title = `Request Azure storage account: ${name}`;
+            const body = `## Azure Storage Request
+
+**Team:** ${team}
+**Environment:** ${env}
+**Storage Account:** ${name}
+**Purpose:** ${purpose}
+
+### Configuration
+- Region: ${region}
+- SKU: ${sku}
+- TLS Version: 1.2 minimum
+- HTTPS Only: Yes
+- Public Blob Access: Disabled
+
+### Generated Resources
+- Resource Group: \`${team}-${env}-storage-rg\`
+- Storage Account: \`${name}\`
+
+This request was generated using the Self-Service Portal.
+
+/cc @platform-team`;
+
+            await createPullRequest(title, body, 'st-commit-status');
+        }
+
+        // Initialize button states on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            updateCommitButtonStates();
+        });
+    </script>
+</body>
+
+</html>
