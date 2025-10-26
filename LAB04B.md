@@ -966,11 +966,11 @@ The ApplicationSet approach provides several benefits:
 
 ```bash
 # Check that ArgoCD is managing the resources
-argocd app list | grep -E "(kro-definitions|developer-resources)"
+argocd app list | grep kro
 
-# View sync status
-argocd app get kro-definitions
-argocd app get developer-resources
+# View sync status of generated applications
+argocd app get kro-kro-definitions
+argocd app get kro-developer-resources
 
 # Check in ArgoCD UI
 # Navigate to http://argocd.YOUR_IP.nip.io
@@ -1356,14 +1356,14 @@ kubectl describe flexibleserver <db-name>
 #### Issue: ArgoCD Not Syncing
 
 ```bash
-# Refresh the application
-argocd app get developer-resources --refresh
+# Refresh the application (use generated application name)
+argocd app get kro-developer-resources --refresh
 
 # Check sync status and errors
-argocd app get developer-resources
+argocd app get kro-developer-resources
 
 # Force a sync
-argocd app sync developer-resources --prune
+argocd app sync kro-developer-resources --prune
 
 # Check if repository is accessible
 argocd repo list
