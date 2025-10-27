@@ -106,8 +106,6 @@ mkdir -p templates/helpers
 # Azure resources should be organized by team: azure-resources/{teamname}/*.yaml
 mkdir -p azure-resources/example-team
 
-# Verify structure
-tree templates/ || ls -R templates/
 ```
 
 ### Create Namespace Request Template
