@@ -292,20 +292,23 @@ Use the provided scripts to interactively generate YAML from templates.
 
 ## Directory Structure
 
-```
-platform-self-service/
-├── namespaces/
-│   ├── dev/
-│   ├── staging/
-│   └── prod/
-├── azure-resources/
-│   ├── team-alpha/
-│   ├── team-beta/
-│   └── team-gamma/
-└── templates/
-    ├── namespaces/
-    ├── azure-storage/
-    └── helpers/
+```mermaid
+graph TD
+    A[platform-self-service] --> B[namespaces]
+    B --> B1[dev]
+    B --> B2[staging]
+    B --> B3[prod]
+
+    A --> C[azure-resources]
+    C --> C1[team-alpha]
+    C --> C2[team-beta]
+    C --> C3[team-gamma]
+
+    A --> D[templates]
+    D --> D1[namespaces]
+    D --> D2[azure-storage]
+    D --> D3[helpers]
+
 ```
 
 **Note**: Azure resources are organized by team name under `azure-resources/`, where each team has their own directory containing their YAML resource definitions.
