@@ -404,7 +404,7 @@ argocd app sync guestbook
 argocd app get guestbook
 
 # Check the deployed resources
-kubectl get all -l app.kubernetes.io/instance=guestbook
+kubectl get all -n default
 ```
 
 ## Troubleshooting
