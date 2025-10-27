@@ -308,7 +308,6 @@ graph TD
     D --> D1[namespaces]
     D --> D2[azure-storage]
     D --> D3[helpers]
-
 ```
 
 **Note**: Azure resources are organized by team name under `azure-resources/`, where each team has their own directory containing their YAML resource definitions.
@@ -317,8 +316,6 @@ graph TD
 
 For questions or issues, contact the platform team or consult LAB04A documentation.
 EOF
-
-echo "✅ Created templates README"
 ```
 
 ### ✅ Verification Steps - Part 1
