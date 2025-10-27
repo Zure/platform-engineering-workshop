@@ -329,7 +329,7 @@ kubectl logs -n azureserviceoperator-system deployment/azureserviceoperator-cont
 **Expected Output:**
 - ASO pod should show 2/2 containers READY and status Running
 - The `aso-controller-settings` secret should exist with 4 data entries (AZURE_SUBSCRIPTION_ID, AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)
-- Many Azure-related CRDs should be installed (100+)
+- Many Azure-related CRDs should be installed (10+)
 - Logs should show successful startup and Azure authentication
 
 ### 🤔 Reflection Questions - Part 2
