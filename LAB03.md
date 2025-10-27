@@ -429,7 +429,6 @@ Verify your GitHub repository is set up correctly:
 ```bash
 # Verify your repository structure
 ls -la ~/platform-self-service/
-tree ~/platform-self-service/
 
 # Check git status and remotes
 cd ~/platform-self-service
