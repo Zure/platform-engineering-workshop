@@ -23,6 +23,7 @@ Before starting, ensure you have completed:
 **Additional Requirements for this lab:**
 - ✅ **Azure Account**: Access to an Azure subscription with permissions to create resources
 - ✅ **Azure CLI**: Installed and configured on your local machine
+- ✅ **Helm**: Kubernetes package manager (we'll install this in Part 1)
 - ✅ **GitHub Account**: For creating your Azure resources repository
 - ✅ **Service Principal**: Azure Service Principal with appropriate permissions (we'll create this together)
 
@@ -83,6 +84,66 @@ sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc
 sudo dnf install -y https://packages.microsoft.com/config/rhel/9/packages-microsoft-prod.rpm
 sudo dnf install azure-cli
 ```
+
+### Install Helm (if not already installed)
+
+Helm is a package manager for Kubernetes that we'll use to install Azure Service Operator.
+
+#### Windows
+```powershell
+# Using Chocolatey (Recommended)
+choco install kubernetes-helm
+
+# Or using Scoop
+scoop install helm
+
+# Or download manually
+# Download from: https://github.com/helm/helm/releases
+# Extract and add helm.exe to your PATH
+```
+
+#### macOS
+```bash
+# Using Homebrew (Recommended)
+brew install helm
+
+# Or download manually
+curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+chmod 700 get_helm.sh
+./get_helm.sh
+```
+
+#### Linux
+```bash
+# Using package manager script (Recommended)
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Or using Snap
+sudo snap install helm --classic
+
+# Or download manually
+# Check for latest version at: https://github.com/helm/helm/releases
+# For x86_64 (replace VERSION with the latest version, e.g., v3.13.0)
+VERSION=v3.13.0
+curl -LO https://get.helm.sh/helm-${VERSION}-linux-amd64.tar.gz
+tar -zxvf helm-${VERSION}-linux-amd64.tar.gz
+sudo mv linux-amd64/helm /usr/local/bin/helm
+```
+
+### Verify Helm Installation
+
+Run the following command to verify Helm is installed correctly:
+
+```bash
+helm version
+```
+
+You should see output similar to:
+```
+version.BuildInfo{Version:"v3.13.0", GitCommit:"825e86f6a7a38cef1112bfa606e4127a706749b1", GitTreeState:"clean", GoVersion:"go1.20.8"}
+```
+
+**Note**: The actual version, commit hash, and Go version will vary depending on when you install Helm. The important part is that the command executes successfully and shows version information.
 
 ### Login to Azure
 ```bash
