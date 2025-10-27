@@ -63,3 +63,9 @@ Workshop for Platform Engineering in a day
 
 ### END: Please leave a review here:
 - https://spreaview.com/review/BKSUG97V/XGJ857UE
+
+#### Comments or feedback how to improve let us know before you go home or connect here:
+- https://www.linkedin.com/in/geertvandercruijsen/
+- https://www.linkedin.com/in/cvs79/
+
+Thank you for being at our workshop hope you liked it ❤️
