@@ -60,3 +60,6 @@ Workshop for Platform Engineering in a day
 ### 16:30 - 17:00 - Wrap up / How to convince your boss / How to continue at home
 - Adoption
 - Q & A
+
+### END: Please leave a review here:
+- https://spreaview.com/review/BKSUG97V/XGJ857UE
