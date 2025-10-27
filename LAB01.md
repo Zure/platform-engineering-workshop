@@ -87,6 +87,35 @@ You should see output similar to:
 kind v0.20.0 go1.20.4 linux/amd64
 ```
 
+### Install kubectl (if not already installed)
+
+#### Windows
+```powershell
+# Using Chocolatey
+choco install kubernetes-cli
+
+# Or download directly
+curl.exe -LO "https://dl.k8s.io/release/v1.28.0/bin/windows/amd64/kubectl.exe"
+```
+
+#### macOS
+```bash
+# Using Homebrew
+brew install kubectl
+
+# Or download directly
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/amd64/kubectl"
+chmod +x ./kubectl
+sudo mv ./kubectl /usr/local/bin/kubectl
+```
+
+#### Linux
+```bash
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x ./kubectl
+sudo mv ./kubectl /usr/local/bin/kubectl
+```
+
 ## Part 2: Creating a Kubernetes Cluster
 
 Now let's create a local Kubernetes cluster using Kind.
@@ -122,35 +151,6 @@ kind create cluster --name workshop --config kind-config.yaml
 
 # Verify the cluster is running
 kubectl cluster-info --context kind-workshop
-```
-
-### Install kubectl (if not already installed)
-
-#### Windows
-```powershell
-# Using Chocolatey
-choco install kubernetes-cli
-
-# Or download directly
-curl.exe -LO "https://dl.k8s.io/release/v1.28.0/bin/windows/amd64/kubectl.exe"
-```
-
-#### macOS
-```bash
-# Using Homebrew
-brew install kubectl
-
-# Or download directly
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/amd64/kubectl"
-chmod +x ./kubectl
-sudo mv ./kubectl /usr/local/bin/kubectl
-```
-
-#### Linux
-```bash
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-chmod +x ./kubectl
-sudo mv ./kubectl /usr/local/bin/kubectl
 ```
 
 ### Verify Cluster Access
