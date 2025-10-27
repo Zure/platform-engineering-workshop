@@ -317,7 +317,7 @@ kubectl describe secret aso-controller-settings -n azureserviceoperator-system
 
 # Check that ASO CRDs are installed
 kubectl get crd | grep azure | wc -l
-# Should show many CRDs (100+)
+# Should show many CRDs (10+)
 
 # View some example CRDs
 kubectl get crd | grep azure | head -5
