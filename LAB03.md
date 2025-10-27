@@ -122,9 +122,11 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 sudo snap install helm --classic
 
 # Or download manually
-# For x86_64
-curl -LO https://get.helm.sh/helm-v3.13.0-linux-amd64.tar.gz
-tar -zxvf helm-v3.13.0-linux-amd64.tar.gz
+# Check for latest version at: https://github.com/helm/helm/releases
+# For x86_64 (replace VERSION with the latest version, e.g., v3.13.0)
+VERSION=v3.13.0
+curl -LO https://get.helm.sh/helm-${VERSION}-linux-amd64.tar.gz
+tar -zxvf helm-${VERSION}-linux-amd64.tar.gz
 sudo mv linux-amd64/helm /usr/local/bin/helm
 ```
 
@@ -140,6 +142,8 @@ You should see output similar to:
 ```
 version.BuildInfo{Version:"v3.13.0", GitCommit:"825e86f6a7a38cef1112bfa606e4127a706749b1", GitTreeState:"clean", GoVersion:"go1.20.8"}
 ```
+
+**Note**: The actual version, commit hash, and Go version will vary depending on when you install Helm. The important part is that the command executes successfully and shows version information.
 
 ### Login to Azure
 ```bash
