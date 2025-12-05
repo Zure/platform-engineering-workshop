@@ -8,7 +8,7 @@ Workshop for Platform Engineering in a day
 
 ### 45 minutes - Introduction into Platform engineering
 - Setting expectations
-- what is platform engineering
+- What is platform engineering
 - GitOps
 - Kubernetes
 - argoCD
