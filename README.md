@@ -61,6 +61,14 @@ Workshop for Platform Engineering in a day
 - Adoption
 - Q & A
 
+## Optional Labs
+
+### [LAB05: Infrastructure as Code with OpenTofu and Terranetes](LAB05.md)
+- Deploy multi-provider infrastructure using OpenTofu (Azure + GitHub)
+- Install and configure Terranetes in your Kubernetes cluster
+- Convert traditional IaC workflows to GitOps with Terranetes
+- Implement platform engineering patterns for self-service infrastructure
+
 #### Comments or feedback how to improve let us know before you go home or connect here:
 - https://www.linkedin.com/in/geertvandercruijsen/
 - https://www.linkedin.com/in/cvs79/
