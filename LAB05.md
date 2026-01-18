@@ -228,7 +228,7 @@ First, create your configuration file:
 
 ```bash
 # Navigate to the opentofu directory
-cd ~/platform-engineering-workshop/lab05/opentofu
+cd lab05/opentofu
 
 # Copy the example configuration
 cp terraform.tfvars.example terraform.tfvars
