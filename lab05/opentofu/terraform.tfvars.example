@@ -1,0 +1,52 @@
+# Example variable values
+# Copy this file to terraform.tfvars and customize with your values
+#
+# cp terraform.tfvars.example terraform.tfvars
+#
+# Then edit terraform.tfvars with your specific configuration
+
+# =============================================================================
+# Azure Configuration
+# =============================================================================
+
+# Name of the Azure Resource Group (must be unique in your subscription)
+# Recommendation: Use your name or initials for uniqueness
+resource_group_name = "rg-yourname-workshop-dev"
+
+# Azure region for resources
+# Options: swedencentral, westeurope, northeurope, eastus, westus2, etc.
+location = "swedencentral"
+
+# Environment tag (dev, staging, prod)
+environment = "dev"
+
+# Project name for resource tagging
+project_name = "platform-workshop"
+
+# =============================================================================
+# GitHub Configuration
+# =============================================================================
+
+# Name of the GitHub repository to create
+# Must be unique in your GitHub account
+# Use lowercase letters, numbers, and hyphens only
+github_repo_name = "yourname-workshop-infra"
+
+# Description for the repository
+github_repo_description = "Infrastructure repository created by Platform Engineering Workshop"
+
+# Repository visibility
+# Options: "public" or "private"
+# Note: Private repos may require GitHub Pro for some features
+github_repo_visibility = "public"
+
+# Topics/tags for the repository
+# These help with discoverability on GitHub
+github_repo_topics = [
+  "opentofu",
+  "terraform",
+  "azure",
+  "infrastructure",
+  "platform-engineering",
+  "workshop"
+]

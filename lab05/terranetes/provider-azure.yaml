@@ -1,0 +1,45 @@
+# Azure Provider for Terranetes
+# This resource configures how Terranetes authenticates with Azure
+#
+# The provider references a Kubernetes secret containing Azure credentials
+# which must be created before applying this resource.
+
+apiVersion: terraform.appvia.io/v1alpha1
+kind: Provider
+metadata:
+  name: azure-provider
+spec:
+  # Human-readable description
+  summary: "Azure provider for Platform Engineering Workshop"
+  
+  # Provider source (same as in versions.tf)
+  source: hashicorp/azurerm
+  
+  # Provider version constraint
+  version: "~> 4.0"
+  
+  # Reference to the Kubernetes secret containing credentials
+  # The secret must contain:
+  # - ARM_SUBSCRIPTION_ID
+  # - ARM_TENANT_ID
+  # - ARM_CLIENT_ID
+  # - ARM_CLIENT_SECRET
+  secretRef:
+    name: azure-credentials
+    namespace: terraform-deployments
+
+---
+# Instructions for creating the required secret:
+#
+# kubectl create secret generic azure-credentials \
+#   --namespace terraform-deployments \
+#   --from-literal=ARM_SUBSCRIPTION_ID="your-subscription-id" \
+#   --from-literal=ARM_TENANT_ID="your-tenant-id" \
+#   --from-literal=ARM_CLIENT_ID="your-client-id" \
+#   --from-literal=ARM_CLIENT_SECRET="your-client-secret"
+#
+# You can get these values from your Azure Service Principal created in LAB03:
+# - subscription_id: az account show --query id -o tsv
+# - tenant_id: az account show --query tenantId -o tsv
+# - client_id: The appId from your Service Principal
+# - client_secret: The password from your Service Principal
