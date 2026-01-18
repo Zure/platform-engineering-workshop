@@ -1,0 +1,44 @@
+# GitHub Credential Injection Policy
+# This policy automatically injects GitHub credentials into
+# any CloudResource in namespaces with specific labels
+#
+# This is a platform engineering pattern that simplifies
+# credential management for developers
+
+apiVersion: terraform.appvia.io/v1alpha1
+kind: Policy
+metadata:
+  name: github-credential-policy
+spec:
+  # Human-readable description
+  summary: "Automatically inject GitHub credentials for authorized namespaces"
+  
+  # Match criteria - which CloudResources this policy applies to
+  constraints:
+    # Only apply to namespaces with this label
+    namespaceSelector:
+      matchLabels:
+        terranetes.appvia.io/github-token: "true"
+  
+  # Default settings to apply
+  defaults:
+    # Inject additional secrets into the terraform execution
+    secrets:
+      - github-credentials
+
+---
+# Instructions for using this policy:
+#
+# 1. Apply this policy:
+#    kubectl apply -f github-policy.yaml
+#
+# 2. Label namespaces that should have GitHub access:
+#    kubectl label namespace terraform-deployments terranetes.appvia.io/github-token=true
+#
+# 3. Create the github-credentials secret in those namespaces:
+#    kubectl create secret generic github-credentials \
+#      --namespace terraform-deployments \
+#      --from-literal=GITHUB_TOKEN="ghp_your_token"
+#
+# 4. Any CloudResource in labeled namespaces will automatically
+#    have access to GitHub without specifying it explicitly

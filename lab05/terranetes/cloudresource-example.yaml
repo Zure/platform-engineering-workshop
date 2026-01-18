@@ -1,0 +1,53 @@
+# CloudResource Example
+# A CloudResource is a user's request for infrastructure
+# It references a Revision (template) and provides variable values
+#
+# This is what a developer would create to get infrastructure provisioned
+
+apiVersion: terraform.appvia.io/v1alpha1
+kind: CloudResource
+metadata:
+  name: workshop-infra
+  namespace: terraform-deployments
+spec:
+  # Reference to the Revision (template) to use
+  revisionRef:
+    name: workshop-infrastructure
+    # Optional: pin to specific version
+    # version: "v1.0.0"
+  
+  # Approval settings
+  # In production, you might require manual approval
+  plan:
+    # Automatically approve and apply changes
+    approval: automatic
+    # Alternative: require manual approval
+    # approval: manual
+  
+  # Enable automatic drift detection and correction
+  enableAutoApproval: true
+  enableDriftDetection: true
+  
+  # Variable values for this instance
+  # These override the defaults in the Revision
+  variables:
+    resource_group_name: "rg-terranetes-workshop-dev"
+    location: "swedencentral"
+    environment: "dev"
+    github_repo_name: "terranetes-workshop-infra"
+    github_repo_description: "Infrastructure created via Terranetes in Platform Engineering Workshop"
+    github_repo_visibility: "public"
+  
+  # Write connection details to a Kubernetes secret
+  # This makes outputs available to applications
+  writeConnectionSecretToRef:
+    name: workshop-infra-outputs
+
+---
+# Instructions for customizing this CloudResource:
+#
+# 1. Edit the variables section with your specific values
+# 2. Make sure resource names are unique to you
+# 3. Apply with: kubectl apply -f cloudresource-example.yaml
+# 4. Check status: kubectl get cloudresource workshop-infra -n terraform-deployments
+# 5. View outputs: kubectl get secret workshop-infra-outputs -n terraform-deployments -o yaml
