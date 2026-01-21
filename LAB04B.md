@@ -973,7 +973,7 @@ argocd app get kro-kro-definitions
 argocd app get kro-developer-resources
 
 # Check in ArgoCD UI
-# Navigate to http://argocd.YOUR_IP.nip.io
+# Navigate to http://argocd.127.0.0.1.nip.io
 # You should see both applications with their resources
 ```
 
@@ -998,7 +998,7 @@ kubectl get resourcegroup -n default
 kubectl get appdatabase,appstorage,appnamespace -n default
 
 # Verify in ArgoCD UI (if accessible)
-# http://argocd.YOUR_IP.nip.io
+# http://argocd.127.0.0.1.nip.io
 # Check both applications show green/healthy status
 ```
 
