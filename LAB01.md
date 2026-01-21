@@ -183,33 +183,6 @@ kubectl wait --namespace ingress-nginx \
 kubectl get pods -n ingress-nginx
 ```
 
-### Get Your Machine's IP Address
-
-For nip.io to work properly, you'll need to know your machine's IP address:
-
-#### Windows
-```powershell
-# Get your IP address
-ipconfig | findstr "IPv4"
-```
-
-#### macOS
-```bash
-# Get your IP address
-ifconfig | grep inet | grep -v 127.0.0.1 | awk '{print $2}'
-```
-
-#### Linux
-```bash
-# Get your IP address (choose the appropriate interface)
-ip addr show | grep "inet " | grep -v 127.0.0.1
-
-# Or use this simpler command
-hostname -I | awk '{print $1}'
-```
-
-**Note your IP address** - you'll use it to access ArgoCD later (e.g., `192.168.1.10`).
-
 ## Part 3: Installing ArgoCD
 
 ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes.
@@ -259,7 +232,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: argocd.YOUR_IP.nip.io
+  - host: argocd.127.0.0.1.nip.io
     http:
       paths:
       - path: /
@@ -278,9 +251,7 @@ Apply the ingress configuration:
 kubectl apply -f argo-ingress.yaml
 ```
 
-**Replace YOUR_IP with your actual IP address** (e.g., if your IP is 192.168.1.10, use `argocd.192.168.1.10.nip.io`).
-
-Now you can access ArgoCD at: `http://argocd.YOUR_IP.nip.io`
+Now you can access ArgoCD at: `http://argocd.127.0.0.1.nip.io`
 
 #### Option 2: Port Forwarding (Alternative)
 ```bash
@@ -309,7 +280,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.pas
 ### Login to ArgoCD
 
 1. Open your browser and navigate to:
-   - **Ingress**: `http://argocd.YOUR_IP.nip.io` (replace YOUR_IP with your actual IP)
+   - **Ingress**: `http://argocd.127.0.0.1.nip.io`
    - **Port forwarding**: `http://localhost:8080`
 2. Use the following credentials:
    - Username: `admin`
@@ -346,7 +317,7 @@ sudo install -m 555 argocd-linux-amd64 /usr/local/bin/argocd
 ```bash
 # Login using the CLI (use the same password from earlier)
 # For ingress access:
-argocd login argocd.YOUR_IP.nip.io --username admin --password <your-password> --insecure
+argocd login argocd.127.0.0.1.nip.io --username admin --password <your-password> --insecure
 
 # For port forwarding access:
 argocd login localhost:8080 --username admin --password <your-password> --insecure
@@ -443,8 +414,7 @@ kubectl logs -n ingress-nginx deployment/ingress-nginx-controller
 ```
 
 #### nip.io Domain Not Resolving
-- Ensure your IP address is correct
-- Try using `curl` to test: `curl -H "Host: argocd.YOUR_IP.nip.io" http://localhost`
+- Try using `curl` to test: `curl -H "Host: argocd.127.0.0.1.nip.io" http://localhost`
 - Check if ports 80/443 are available and not blocked by firewall
 
 #### Port 8080 Already in Use
