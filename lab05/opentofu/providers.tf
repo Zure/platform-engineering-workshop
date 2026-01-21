@@ -16,9 +16,6 @@ provider "azurerm" {
     }
   }
 
-  # Subscription ID can be set via ARM_SUBSCRIPTION_ID environment variable
-  # or explicitly here:
-  # subscription_id = "your-subscription-id"
 }
 
 # GitHub Provider

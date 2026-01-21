@@ -40,13 +40,12 @@ resource "github_repository" "main" {
   visibility  = var.github_repo_visibility
 
   # Repository settings
-  auto_init          = true    # Create with initial commit
-  has_issues         = true    # Enable issues
-  has_wiki           = false   # Disable wiki
-  has_projects       = false   # Disable projects
-  has_discussions    = false   # Disable discussions
-  has_downloads      = true    # Enable downloads
-  archive_on_destroy = false   # Delete (not archive) when destroyed
+  auto_init          = true  # Create with initial commit
+  has_issues         = true  # Enable issues
+  has_wiki           = false # Disable wiki
+  has_projects       = false # Disable projects
+  has_discussions    = false # Disable discussions
+  archive_on_destroy = false # Delete (not archive) when destroyed
 
   # Topics for discoverability
   topics = var.github_repo_topics

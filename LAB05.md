@@ -132,6 +132,10 @@ tofu version
 # Verify Azure CLI is authenticated
 az account show --query name -o tsv
 
+# Set Azure subscription ID for OpenTofu
+export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+echo "Subscription ID: $ARM_SUBSCRIPTION_ID"
+
 # Verify GitHub token is set
 [ -n "$GITHUB_TOKEN" ] && echo "GitHub token is set" || echo "GitHub token is NOT set"
 
@@ -144,6 +148,7 @@ kubectl cluster-info
 
 **Expected Output:**
 - Azure CLI shows your subscription name
+- Subscription ID is displayed (GUID format)
 - GitHub token confirmation message
 - OpenTofu version (e.g., `OpenTofu v1.6.0`)
 - Kubernetes cluster info showing your Kind cluster
@@ -253,6 +258,23 @@ github_repo_visibility  = "public"  # Use "private" if you prefer
 ```
 
 **Important**: Replace `yourname` with your actual name or initials to ensure unique resource names.
+
+### Set Azure Subscription ID
+
+OpenTofu needs to know which Azure subscription to use. Set this from your Azure CLI context:
+
+```bash
+# Get your current subscription ID from Azure CLI
+az account show --query id -o tsv
+
+# Set it as an environment variable
+export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+# Verify it's set
+echo "Using subscription: $ARM_SUBSCRIPTION_ID"
+```
+
+**Why is this needed?** The OpenTofu Azure provider requires the subscription ID to be explicitly available, either through this environment variable or hardcoded in the configuration. Using an environment variable keeps your configuration portable and secure.
 
 ### Initialize OpenTofu
 
@@ -839,6 +861,32 @@ az login
 az ad sp show --id YOUR_CLIENT_ID
 ```
 
+#### Issue: "subscription ID could not be determined"
+
+If you get an error like `building account: unable to configure ResourceManagerAccount: subscription ID could not be determined`:
+
+```bash
+# The Azure provider needs the subscription ID explicitly set
+# Get your subscription ID
+az account show --query id -o tsv
+
+# Set it as an environment variable
+export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
+
+# Verify it's set
+echo "ARM_SUBSCRIPTION_ID is set to: $ARM_SUBSCRIPTION_ID"
+
+# Now retry your tofu command
+tofu plan
+```
+
+**Important**: This environment variable must be set in every new terminal session. For convenience, you can run OpenTofu commands like this:
+
+```bash
+# One-liner that sets the variable and runs the command
+export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv) && tofu plan
+```
+
 #### Issue: GitHub Token Invalid
 
 ```bash
@@ -978,6 +1026,10 @@ From this lab, you should understand:
 ### Useful Commands Reference
 
 ```bash
+# Environment Setup
+export GITHUB_TOKEN="ghp_your_token_here"                    # Set GitHub token
+export ARM_SUBSCRIPTION_ID=$(az account show --query id -o tsv)  # Set Azure subscription
+
 # OpenTofu Commands
 tofu init              # Initialize working directory
 tofu validate          # Validate configuration
