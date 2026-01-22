@@ -11,18 +11,9 @@ metadata:
   namespace: terraform-deployments
 spec:
   # Reference to the Revision (template) to use
-  revisionRef:
-    name: workshop-infrastructure
-    # Optional: pin to specific version
-    # version: "v1.0.0"
-  
-  # Approval settings
-  # In production, you might require manual approval
   plan:
-    # Automatically approve and apply changes
-    approval: automatic
-    # Alternative: require manual approval
-    # approval: manual
+    name: workshop-infrastructure
+    revision: v1.0.0
   
   # Enable automatic drift detection and correction
   enableAutoApproval: true

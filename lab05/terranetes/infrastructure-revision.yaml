@@ -11,26 +11,30 @@ kind: Revision
 metadata:
   name: workshop-infrastructure
 spec:
-  # Version of this template
-  version: "v1.0.0"
-  
-  # Human-readable description
-  description: |
-    Creates infrastructure setup for a workshop participant using the 
-    workshop's OpenTofu module from the GitHub repository.
-    
-    This demonstrates how Terranetes can use existing Terraform/OpenTofu 
-    modules from Git repositories as cloud provider templates.
+  # Plan information - required by Terranetes
+  plan:
+    name: "workshop-infrastructure"
+    description: |
+      Creates infrastructure setup for a workshop participant using the 
+      workshop's OpenTofu module from the GitHub repository.
+      
+      This demonstrates how Terranetes can use existing Terraform/OpenTofu 
+      modules from Git repositories as cloud provider templates.
+    revision: "v1.0.0"
   
   # OpenTofu/Terraform configuration
   configuration:
-    # Required providers - only Azure for cloud provider compatibility
-    providerRefs:
-      - name: azure-provider
-    
     # Source module from workshop repository
     # Uses the Terranetes-compatible OpenTofu module
-    source: "https://github.com/Zure/platform-engineering-workshop.git//lab05/opentofu?ref=main"
+    module: "https://github.com/Zure/platform-engineering-workshop.git//lab05/opentofu?ref=main"
+    
+    # Provider reference - only Azure for cloud provider compatibility
+    providerRef:
+      name: azure
+    
+    # Enable automatic approval for this workshop
+    enableAutoApproval: true
+    enableDriftDetection: true
   
   # Variables that users must/can provide
   inputs:
