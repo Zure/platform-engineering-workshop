@@ -59,8 +59,10 @@ cd platform-self-service
 mkdir -p namespaces/{dev,staging,prod}
 mkdir -p projects
 mkdir -p applications
+```
 
 # Update the README
+```bash
 cat << 'EOF' > README.md
 # Platform Self-Service
 
@@ -99,10 +101,12 @@ git push origin request-myteam-namespace
 
 # 4. Create a Pull Request on GitHub
 # 5. After PR is approved and merged, ArgoCD will create your namespace
-```
+
 EOF
+```
 
 # Create .gitignore
+```bash
 cat << 'EOF' > .gitignore
 .DS_Store
 *.tmp
@@ -494,12 +498,13 @@ kubectl get resourcequota -n devops-frontend-dev
 
 ## Part 4: Testing the Self-Service Workflow
 
-Now let's test the complete GitOps workflow by simulating a team requesting a new namespace through a Pull Request.
+Now let's test the complete GitOps workflow by simulating **a new team (the mobile team)** requesting a namespace through a Pull Request. This demonstrates how additional development teams can onboard themselves to the platform using the same self-service workflow.
 
 ### Create a Namespace Request via Pull Request
 
 ```bash
 # Create a new branch for the mobile team's request
+# (Simulating a third development team joining the platform)
 git checkout -b request-mobile-dev-namespace
 
 # Create the namespace definition
@@ -548,7 +553,7 @@ spec:
     type: Container
 EOF
 
-# Commit the change
+# Commit the chang
 git add namespaces/dev/mobile-dev-namespace.yaml
 git commit -m "Request mobile team development namespace
 
@@ -566,15 +571,15 @@ git push origin request-mobile-dev-namespace
 2. Click "Compare & pull request" for the `request-mobile-dev-namespace` branch
 3. Fill in the Pull Request details:
    - **Title**: "Request mobile team development namespace"
-   - **Description**: 
+   - **Description**:
      ```
      ## Namespace Request
-     
+
      **Team**: Mobile
      **Environment**: Development
      **Contact**: mobile-team@company.com
      **Purpose**: Mobile application development environment
-     
+
      ## Resources
      - CPU: 1-2 cores
      - Memory: 2-4Gi
