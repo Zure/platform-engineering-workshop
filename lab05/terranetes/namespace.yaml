@@ -1,0 +1,29 @@
+# Namespace configuration for Terranetes deployments
+# This creates a namespace with appropriate labels for policy-based credential injection
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: terraform-deployments
+  labels:
+    # Enable GitHub credential injection via policy
+    terranetes.appvia.io/github-token: "true"
+    # Custom labels for organization
+    app.kubernetes.io/part-of: platform-engineering-workshop
+    environment: workshop
+
+---
+# Note: After applying this namespace, you need to create the required secrets:
+#
+# Azure credentials:
+# kubectl create secret generic azure-credentials \
+#   --namespace terraform-deployments \
+#   --from-literal=ARM_SUBSCRIPTION_ID="..." \
+#   --from-literal=ARM_TENANT_ID="..." \
+#   --from-literal=ARM_CLIENT_ID="..." \
+#   --from-literal=ARM_CLIENT_SECRET="..."
+#
+# GitHub credentials:
+# kubectl create secret generic github-credentials \
+#   --namespace terraform-deployments \
+#   --from-literal=GITHUB_TOKEN="..."
