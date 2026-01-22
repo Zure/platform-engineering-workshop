@@ -4,7 +4,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: terraform-deployments
+  name: terranetes-deployments
   labels:
     # Enable GitHub credential injection via policy
     terranetes.appvia.io/github-token: "true"
@@ -17,7 +17,7 @@ metadata:
 #
 # Azure credentials:
 # kubectl create secret generic azure-credentials \
-#   --namespace terraform-deployments \
+#   --namespace terranetes-deployments \
 #   --from-literal=ARM_SUBSCRIPTION_ID="..." \
 #   --from-literal=ARM_TENANT_ID="..." \
 #   --from-literal=ARM_CLIENT_ID="..." \
@@ -25,5 +25,5 @@ metadata:
 #
 # GitHub credentials:
 # kubectl create secret generic github-credentials \
-#   --namespace terraform-deployments \
+#   --namespace terranetes-deployments \
 #   --from-literal=GITHUB_TOKEN="..."

@@ -5,7 +5,7 @@
 # Usage: ./setup-credentials.sh
 #
 # This script creates:
-# - terraform-deployments namespace
+# - terranetes-deployments namespace
 # - Azure credentials secret
 # - GitHub credentials secret
 # - Provider configurations
@@ -61,7 +61,7 @@ echo -e "${GREEN}✓ GitHub token available${NC}"
 echo
 echo -e "${YELLOW}Creating namespace...${NC}"
 kubectl apply -f "$TERRANETES_DIR/namespace.yaml"
-echo -e "${GREEN}✓ Namespace terraform-deployments created${NC}"
+echo -e "${GREEN}✓ Namespace terranetes-deployments created${NC}"
 
 echo
 echo -e "${YELLOW}Getting Azure credentials...${NC}"
@@ -84,9 +84,9 @@ fi
 
 echo
 echo -e "${YELLOW}Creating Azure credentials secret...${NC}"
-kubectl delete secret azure-credentials -n terraform-deployments 2>/dev/null || true
+kubectl delete secret azure-credentials -n terranetes-deployments 2>/dev/null || true
 kubectl create secret generic azure-credentials \
-    --namespace terraform-deployments \
+    --namespace terranetes-deployments \
     --from-literal=ARM_SUBSCRIPTION_ID="$ARM_SUBSCRIPTION_ID" \
     --from-literal=ARM_TENANT_ID="$ARM_TENANT_ID" \
     --from-literal=ARM_CLIENT_ID="$ARM_CLIENT_ID" \
@@ -95,9 +95,9 @@ echo -e "${GREEN}✓ Azure credentials secret created${NC}"
 
 echo
 echo -e "${YELLOW}Creating GitHub credentials secret...${NC}"
-kubectl delete secret github-credentials -n terraform-deployments 2>/dev/null || true
+kubectl delete secret github-credentials -n terranetes-deployments 2>/dev/null || true
 kubectl create secret generic github-credentials \
-    --namespace terraform-deployments \
+    --namespace terranetes-deployments \
     --from-literal=GITHUB_TOKEN="$GITHUB_TOKEN"
 echo -e "${GREEN}✓ GitHub credentials secret created${NC}"
 
@@ -121,7 +121,7 @@ echo
 echo -e "${BLUE}Verifying setup:${NC}"
 echo
 echo -e "${YELLOW}Secrets:${NC}"
-kubectl get secrets -n terraform-deployments
+kubectl get secrets -n terranetes-deployments
 
 echo
 echo -e "${YELLOW}Providers:${NC}"
@@ -141,4 +141,4 @@ echo "   # Edit cloudresource-example.yaml with your values"
 echo "   kubectl apply -f ../terranetes/cloudresource-example.yaml"
 echo
 echo "3. Monitor the deployment:"
-echo "   kubectl get cloudresource -n terraform-deployments --watch"
+echo "   kubectl get cloudresource -n terranetes-deployments --watch"

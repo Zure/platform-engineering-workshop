@@ -1,47 +1,74 @@
-# Infrastructure Revision for Terranetes
+# Infrastructure Revision for Terranetes - Platform Engineering Workshop
 # A Revision is a reusable template that platform teams create
 # and developers can instantiate via CloudResources
 #
-# This Revision uses the workshop's OpenTofu module to create:
-# - Azure Resource Group
-# - GitHub Repository (via Azure provider integration)
+# This follows the proper Terranetes pattern using the workshop's OpenTofu module
 
+---
 apiVersion: terraform.appvia.io/v1alpha1
 kind: Revision
 metadata:
-  name: workshop-infrastructure
+  name: workshop-infra-v1.0.0
+  annotations:
+    terranetes.appvia.io/tnctl.version: v0.5.6
 spec:
-  # Plan information - required by Terranetes
+  ## Contains metadata around the package, its use, version
+  ## and description
   plan:
-    name: "workshop-infrastructure"
-    description: |
-      Creates infrastructure setup for a workshop participant using the 
-      workshop's OpenTofu module from the GitHub repository.
-      
-      This demonstrates how Terranetes can use existing Terraform/OpenTofu 
-      modules from Git repositories as cloud provider templates.
-    revision: "v1.0.0"
-  
-  # OpenTofu/Terraform configuration
+    ## Is the name of the plan this revision is part-of. Revisions are
+    ## grouped together by spec.plan.name to create a plan.
+    name: workshop-infra
+    ## Provides the user with a collection of categories this plan
+    ## provides.
+    categories: ["infrastructure", "development"]
+    ## Is a human readable description of the plan and what the cloud
+    ## resource provides.
+    description: Platform Engineering Workshop Infrastructure - Azure Resource Group and GitHub Repository
+    ## Is the semvar version of this revision
+    revision: v1.0.0
+    ## Is a changelog of the changes made in this revision
+    changeLog: Initial revision for Platform Engineering Workshop
+
+  ## Inputs dictate the variables which the consumer is permitted, or
+  ## required to provide. Keep this minimal - only unique identifiers needed.
+  inputs:
+    - ## Key is the name of the variable in the terraform module
+      key: resource_group_name
+      ## Description is a human readable description of the variable
+      description: Name of the Azure Resource Group (must be unique)
+      ## Provides a default value, this can be a simple or complex type
+      default: 
+        example: string
+        value: rg-workshop-dev
+        
+      ## Is the format for the input
+      type: string
+    - ## Key is the name of the variable in the terraform module
+      key: github_repo_name
+      ## Description is a human readable description of the variable
+      description: Name of the GitHub repository (must be unique)
+      ## Provides a default value, this can be a simple or complex type
+      default: 
+        example: string
+        value: workshop-infrastructure
+        
+      ## Is the format for the input
+      type: string
+
+  ## Configuration is the template for the resource; the final cloud resource
+  ## will be a combination of user defined variables above and the template
+  ## provided below
   configuration:
-    # Source module from workshop repository
-    # Uses the Terranetes-compatible OpenTofu module
-    module: "https://github.com/Zure/platform-engineering-workshop.git//lab05/opentofu?ref=main"
-    
-    # Provider reference - only Azure for cloud provider compatibility
+    ## Is the location of the terraform module; this references the OpenTofu
+    ## module in the same repository's lab05/opentofu directory
+    module: https://github.com/Zure/platform-engineering-workshop.git//lab05/opentofu?ref=main
+    ## Is the provider for the module, this is optional as the provider can be
+    ## defined in the cloud resource itself
     providerRef:
       name: azure
-    
-    # Enable automatic approval for this workshop
-    enableAutoApproval: true
-    enableDriftDetection: true
-  
-  # Variables that users must/can provide
-  inputs:
-    - key: resource_group_name
-      description: "Name of the Azure Resource Group to create"
-      required: true
-      
-    - key: github_repo_name
-      description: "Name of the GitHub repository to create"
-      required: true
+    ## All other variables use defaults from the module (location, environment, etc.)
+    variables: {}
+
+    ## Is the name of the secret contains the outputs from the terraform module
+    writeConnectionSecretToRef:
+      name: workshop-infra

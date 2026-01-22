@@ -450,3 +450,40 @@ tfplan
 # Custom scripts and temporary files
 tofu.sh
 *.backup
+
+# ==============================================================================
+# Kubernetes and Helm Files  
+# ==============================================================================
+
+# Helm dependency files
+charts/*/charts/
+charts/*/requirements.lock
+
+# Kubernetes temporary files
+*.tmp.yaml
+*.tmp.yml
+
+# ==============================================================================
+# General Development Files
+# ==============================================================================
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Temporary files
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

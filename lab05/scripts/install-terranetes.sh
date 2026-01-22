@@ -58,21 +58,21 @@ echo
 echo -e "${YELLOW}Installing Terranetes controller...${NC}"
 
 # Check if already installed
-if helm status terranetes-controller -n terraform-system &> /dev/null; then
+if helm status terranetes-controller -n terranetes-system &> /dev/null; then
     echo -e "${YELLOW}Terranetes controller is already installed${NC}"
     read -p "Do you want to upgrade it? (yes/no): " UPGRADE
     if [ "$UPGRADE" == "yes" ]; then
         helm upgrade terranetes-controller appvia/terranetes-controller \
-            --namespace terraform-system
+            --namespace terranetes-system
     fi
 else
-    helm install -n terraform-system terranetes-controller appvia/terranetes-controller \
+    helm install -n terranetes-system terranetes-controller appvia/terranetes-controller \
         --create-namespace
 fi
 
 echo
 echo -e "${YELLOW}Waiting for controller to be ready...${NC}"
-kubectl rollout status deployment/terranetes-controller -n terraform-system --timeout=120s
+kubectl rollout status deployment/terranetes-controller -n terranetes-system --timeout=120s
 
 echo
 echo -e "${GREEN}========================================${NC}"
@@ -85,7 +85,7 @@ echo -e "${BLUE}Verifying installation:${NC}"
 echo
 
 echo -e "${YELLOW}Controller pods:${NC}"
-kubectl get pods -n terraform-system
+kubectl get pods -n terranetes-system
 
 echo
 echo -e "${YELLOW}Terranetes CRDs:${NC}"
@@ -93,12 +93,12 @@ kubectl get crd | grep terraform.appvia.io
 
 echo
 echo -e "${GREEN}Next steps:${NC}"
-echo "1. Create the terraform-deployments namespace:"
+echo "1. Create the terranetes-deployments namespace:"
 echo "   kubectl apply -f ../terranetes/namespace.yaml"
 echo
 echo "2. Create Azure credentials secret:"
 echo "   kubectl create secret generic azure-credentials \\"
-echo "     --namespace terraform-deployments \\"
+echo "     --namespace terranetes-deployments \\"
 echo "     --from-literal=ARM_SUBSCRIPTION_ID=\"...\" \\"
 echo "     --from-literal=ARM_TENANT_ID=\"...\" \\"
 echo "     --from-literal=ARM_CLIENT_ID=\"...\" \\"
@@ -106,7 +106,7 @@ echo "     --from-literal=ARM_CLIENT_SECRET=\"...\""
 echo
 echo "3. Create GitHub credentials secret:"
 echo "   kubectl create secret generic github-credentials \\"
-echo "     --namespace terraform-deployments \\"
+echo "     --namespace terranetes-deployments \\"
 echo "     --from-literal=GITHUB_TOKEN=\"...\""
 echo
 echo "4. Apply provider configurations:"

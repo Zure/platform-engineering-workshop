@@ -1,41 +1,38 @@
-# CloudResource Example
+# CloudResource for Platform Engineering Workshop
 # A CloudResource is a user's request for infrastructure
-# It references a Revision (template) and provides variable values
+# It references a Plan (template) and provides variable values
 #
 # This is what a developer would create to get infrastructure provisioned
 
 apiVersion: terraform.appvia.io/v1alpha1
 kind: CloudResource
 metadata:
-  name: workshop-infra
-  namespace: terraform-deployments
+  name: workshop-infra-v2
+  namespace: terranetes-deployments
 spec:
-  # Reference to the Revision (template) to use
+  # Reference to the Plan (template) to use
   plan:
-    name: workshop-infrastructure
+    name: workshop-infra
     revision: v1.0.0
   
-  # Enable automatic drift detection and correction
-  enableAutoApproval: true
-  enableDriftDetection: true
+  # Reference to the cloud provider
+  providerRef:
+    name: azure
   
-  # Variable values for this instance
-  # Only required variables need to be specified
+  # Variable values for this instance - only the unique identifiers needed!
+  # All other variables (location, environment, etc.) use sensible defaults
   variables:
-    resource_group_name: "rg-terranetes-workshop-dev"
-    github_repo_name: "terranetes-workshop-infra"
+    resource_group_name: "rg-geert-terranetes-workshop-dev"  # Make this unique to you
+    github_repo_name: "geert-terranetes-workshop-infra"      # Make this unique to you
   
-  # Write connection details to a Kubernetes secret
-  # This makes outputs available to applications
-  writeConnectionSecretToRef:
-    name: workshop-infra-outputs
+  # Terraform execution settings
+  enableAutoApproval: false  # Set to true to auto-approve plans
 
 ---
 # Instructions for customizing this CloudResource:
 #
-# 1. Edit the variables section with your specific values:
-#    - resource_group_name: Make unique to avoid conflicts
-#    - github_repo_name: Choose a unique repository name
-# 2. Apply with: kubectl apply -f cloudresource-example.yaml
-# 3. Check status: kubectl get cloudresource workshop-infra -n terraform-deployments
-# 4. View outputs: kubectl get secret workshop-infra-outputs -n terraform-deployments -o yaml
+# 1. Replace "yourname" with your actual name/initials in the variables above
+# 2. Make sure resource names are unique to avoid conflicts
+# 3. Apply with: kubectl apply -f cloudresource-example.yaml
+# 4. Check status: kubectl get cloudresource workshop-infra-v2 -n terranetes-deployments
+# 5. View outputs: kubectl get secret workshop-infra -n terranetes-deployments -o yaml
