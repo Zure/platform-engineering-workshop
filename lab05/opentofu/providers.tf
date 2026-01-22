@@ -1,33 +1,25 @@
 # Provider configurations
 # This file configures how OpenTofu authenticates with each cloud provider
+# 
+# NOTE: When using this module with Terranetes, provider configurations 
+# are handled automatically by the Terranetes controller. The provider
+# blocks below are only used for direct OpenTofu deployments.
+#
+# For Terranetes compatibility, these provider configurations are removed.
+# Authentication is handled by:
+# - Terranetes: Via Provider resources and secrets
+# - Direct OpenTofu: Via environment variables or Azure CLI
 
-# Azure Resource Manager Provider
-# Authentication methods (in order of precedence):
-# 1. Service Principal with client secret (ARM_CLIENT_ID, ARM_CLIENT_SECRET, ARM_TENANT_ID)
-# 2. Azure CLI (az login)
-# 3. Managed Identity (when running in Azure)
-provider "azurerm" {
-  features {
-    # Resource group settings
-    resource_group {
-      # Don't prevent deletion of resource groups that contain resources
-      # This is useful for workshop cleanup
-      prevent_deletion_if_contains_resources = false
-    }
-  }
+# Uncomment the provider configurations below when running OpenTofu directly:
 
-}
+# provider "azurerm" {
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = false
+#     }
+#   }
+# }
 
-# GitHub Provider
-# Authentication methods:
-# 1. GITHUB_TOKEN environment variable (recommended)
-# 2. GitHub CLI (gh auth login)
-# 3. Explicit token in provider block (not recommended for security)
-provider "github" {
-  # The token is read from the GITHUB_TOKEN environment variable
-  # You can also set it explicitly (not recommended):
-  # token = var.github_token
-
-  # If you need to create repos in an organization, specify it:
-  # owner = "your-organization"
-}
+# provider "github" {
+#   # The token is read from the GITHUB_TOKEN environment variable
+# }
