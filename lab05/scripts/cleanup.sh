@@ -46,8 +46,8 @@ echo -e "${BLUE}========================================${NC}"
 # Delete CloudResources (this will destroy cloud infrastructure)
 echo
 echo -e "${YELLOW}Deleting CloudResources...${NC}"
-if kubectl get cloudresources.terraform.appvia.io -n terraform-deployments &> /dev/null; then
-    kubectl delete cloudresources.terraform.appvia.io --all -n terraform-deployments --timeout=300s || true
+if kubectl get cloudresources.terraform.appvia.io -n terranetes-deployments &> /dev/null; then
+    kubectl delete cloudresources.terraform.appvia.io --all -n terranetes-deployments --timeout=300s || true
     echo "Waiting for cloud resources to be destroyed..."
     sleep 30
 fi
@@ -74,16 +74,16 @@ echo -e "${GREEN}✓ Policies deleted${NC}"
 # Uninstall Terranetes controller
 echo
 echo -e "${YELLOW}Uninstalling Terranetes controller...${NC}"
-if helm status terranetes-controller -n terraform-system &> /dev/null; then
-    helm uninstall terranetes-controller -n terraform-system
+if helm status terranetes-controller -n terranetes-system &> /dev/null; then
+    helm uninstall terranetes-controller -n terranetes-system
 fi
 echo -e "${GREEN}✓ Terranetes controller uninstalled${NC}"
 
 # Delete namespaces
 echo
 echo -e "${YELLOW}Deleting namespaces...${NC}"
-kubectl delete namespace terraform-system --timeout=60s 2>/dev/null || true
-kubectl delete namespace terraform-deployments --timeout=60s 2>/dev/null || true
+kubectl delete namespace terranetes-system --timeout=60s 2>/dev/null || true
+kubectl delete namespace terranetes-deployments --timeout=60s 2>/dev/null || true
 echo -e "${GREEN}✓ Namespaces deleted${NC}"
 
 echo

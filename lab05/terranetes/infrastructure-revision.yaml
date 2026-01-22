@@ -1,163 +1,74 @@
-# Infrastructure Revision for Terranetes
+# Infrastructure Revision for Terranetes - Platform Engineering Workshop
 # A Revision is a reusable template that platform teams create
 # and developers can instantiate via CloudResources
 #
-# This Revision creates the same infrastructure as the OpenTofu configuration:
-# - Azure Resource Group
-# - GitHub Repository
+# This follows the proper Terranetes pattern using the workshop's OpenTofu module
 
+---
 apiVersion: terraform.appvia.io/v1alpha1
 kind: Revision
 metadata:
-  name: workshop-infrastructure
+  name: workshop-infra-v1.0.0
+  annotations:
+    terranetes.appvia.io/tnctl.version: v0.5.6
 spec:
-  # Version of this template
-  version: "v1.0.0"
-  
-  # Human-readable description
-  description: |
-    Creates a complete infrastructure setup for a workshop participant:
-    - Azure Resource Group for hosting Azure resources
-    - GitHub Repository for storing infrastructure code
-    
-    This demonstrates multi-provider infrastructure management with Terranetes.
-  
-  # OpenTofu/Terraform configuration
-  configuration:
-    # Required providers
-    providerRefs:
-      - name: azure-provider
-      - name: github-provider
-    
-    # Source of the OpenTofu modules
-    # For this workshop, we use inline configuration
-    module: |
-      terraform {
-        required_version = ">= 1.0"
-        
-        required_providers {
-          azurerm = {
-            source  = "hashicorp/azurerm"
-            version = "~> 4.0"
-          }
-          github = {
-            source  = "integrations/github"
-            version = "~> 6.0"
-          }
-        }
-      }
-      
-      provider "azurerm" {
-        features {
-          resource_group {
-            prevent_deletion_if_contains_resources = false
-          }
-        }
-      }
-      
-      provider "github" {}
-      
-      # Variables exposed to users
-      variable "resource_group_name" {
-        description = "Name of the Azure Resource Group"
-        type        = string
-      }
-      
-      variable "location" {
-        description = "Azure region"
-        type        = string
-        default     = "swedencentral"
-      }
-      
-      variable "environment" {
-        description = "Environment (dev, staging, prod)"
-        type        = string
-        default     = "dev"
-      }
-      
-      variable "github_repo_name" {
-        description = "Name of the GitHub repository"
-        type        = string
-      }
-      
-      variable "github_repo_description" {
-        description = "Repository description"
-        type        = string
-        default     = "Infrastructure repository managed by Terranetes"
-      }
-      
-      variable "github_repo_visibility" {
-        description = "Repository visibility (public/private)"
-        type        = string
-        default     = "public"
-      }
-      
-      # Azure Resource Group
-      resource "azurerm_resource_group" "main" {
-        name     = var.resource_group_name
-        location = var.location
-        
-        tags = {
-          environment = var.environment
-          managed-by  = "terranetes"
-          workshop    = "platform-engineering"
-        }
-      }
-      
-      # GitHub Repository
-      resource "github_repository" "main" {
-        name        = var.github_repo_name
-        description = var.github_repo_description
-        visibility  = var.github_repo_visibility
-        auto_init   = true
-        has_issues  = true
-        
-        topics = ["terranetes", "infrastructure", "workshop"]
-      }
-      
-      # Outputs
-      output "azure_resource_group_name" {
-        value = azurerm_resource_group.main.name
-      }
-      
-      output "azure_resource_group_id" {
-        value = azurerm_resource_group.main.id
-      }
-      
-      output "github_repository_url" {
-        value = github_repository.main.html_url
-      }
-      
-      output "github_repository_clone_url" {
-        value = github_repository.main.http_clone_url
-      }
-  
-  # Variables that users must/can provide
+  ## Contains metadata around the package, its use, version
+  ## and description
+  plan:
+    ## Is the name of the plan this revision is part-of. Revisions are
+    ## grouped together by spec.plan.name to create a plan.
+    name: workshop-infra
+    ## Provides the user with a collection of categories this plan
+    ## provides.
+    categories: ["infrastructure", "development"]
+    ## Is a human readable description of the plan and what the cloud
+    ## resource provides.
+    description: Platform Engineering Workshop Infrastructure - Azure Resource Group and GitHub Repository
+    ## Is the semvar version of this revision
+    revision: v1.0.0
+    ## Is a changelog of the changes made in this revision
+    changeLog: Initial revision for Platform Engineering Workshop
+
+  ## Inputs dictate the variables which the consumer is permitted, or
+  ## required to provide. Keep this minimal - only unique identifiers needed.
   inputs:
-    - key: resource_group_name
-      description: "Name of the Azure Resource Group to create"
-      required: true
-      
-    - key: location
-      description: "Azure region for resources"
-      default:
-        value: "swedencentral"
-      
-    - key: environment
-      description: "Environment name (dev, staging, prod)"
-      default:
-        value: "dev"
-      
-    - key: github_repo_name
-      description: "Name of the GitHub repository to create"
-      required: true
-      
-    - key: github_repo_description
-      description: "Description for the GitHub repository"
-      default:
-        value: "Infrastructure repository managed by Terranetes"
-      
-    - key: github_repo_visibility
-      description: "Repository visibility (public/private)"
-      default:
-        value: "public"
+    - ## Key is the name of the variable in the terraform module
+      key: resource_group_name
+      ## Description is a human readable description of the variable
+      description: Name of the Azure Resource Group (must be unique)
+      ## Provides a default value, this can be a simple or complex type
+      default: 
+        example: string
+        value: rg-workshop-dev
+        
+      ## Is the format for the input
+      type: string
+    - ## Key is the name of the variable in the terraform module
+      key: github_repo_name
+      ## Description is a human readable description of the variable
+      description: Name of the GitHub repository (must be unique)
+      ## Provides a default value, this can be a simple or complex type
+      default: 
+        example: string
+        value: workshop-infrastructure
+        
+      ## Is the format for the input
+      type: string
+
+  ## Configuration is the template for the resource; the final cloud resource
+  ## will be a combination of user defined variables above and the template
+  ## provided below
+  configuration:
+    ## Is the location of the terraform module; this references the OpenTofu
+    ## module in the same repository's lab05/opentofu directory
+    module: https://github.com/Zure/platform-engineering-workshop.git//lab05/opentofu?ref=main
+    ## Is the provider for the module, this is optional as the provider can be
+    ## defined in the cloud resource itself
+    providerRef:
+      name: azure
+    ## All other variables use defaults from the module (location, environment, etc.)
+    variables: {}
+
+    ## Is the name of the secret contains the outputs from the terraform module
+    writeConnectionSecretToRef:
+      name: workshop-infra

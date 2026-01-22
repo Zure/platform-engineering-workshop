@@ -444,18 +444,18 @@ helm repo add appvia https://terranetes-controller.appvia.io
 helm repo update
 
 # Install Terranetes controller
-helm install -n terraform-system terranetes-controller appvia/terranetes-controller \
+helm install -n terranetes-system terranetes-controller appvia/terranetes-controller \
   --create-namespace
 
 # Wait for the controller to be ready
-kubectl rollout status deployment/terranetes-controller -n terraform-system
+kubectl rollout status deployment/terranetes-controller -n terranetes-system
 ```
 
 ### Verify Terranetes Installation
 
 ```bash
 # Check the controller is running
-kubectl get pods -n terraform-system
+kubectl get pods -n terranetes-system
 
 # Check Terranetes CRDs are installed
 kubectl get crd | grep terraform
@@ -513,11 +513,11 @@ Create a Kubernetes secret with Azure credentials:
 # You'll need: subscription_id, tenant_id, client_id, client_secret
 
 # Create the Azure credentials secret
-kubectl create namespace terraform-deployments
+kubectl create namespace terranetes-deployments
 
 # Create secret with your Azure Service Principal credentials
 kubectl create secret generic azure-credentials \
-  --namespace terraform-deployments \
+  --namespace terranetes-deployments \
   --from-literal=ARM_SUBSCRIPTION_ID="$(az account show --query id -o tsv)" \
   --from-literal=ARM_TENANT_ID="$(az account show --query tenantId -o tsv)" \
   --from-literal=ARM_CLIENT_ID="YOUR_CLIENT_ID" \
@@ -539,28 +539,26 @@ kubectl apply -f provider-azure.yaml
 kubectl get providers.terraform.appvia.io
 ```
 
-### Configure GitHub Provider for Terranetes
+### Configure GitHub Credentials for Terranetes
 
-Create a secret for GitHub authentication:
+Create a secret for GitHub authentication (used by the Terraform module):
 
 ```bash
 # Create GitHub credentials secret
 kubectl create secret generic github-credentials \
-  --namespace terraform-deployments \
+  --namespace terranetes-deployments \
   --from-literal=GITHUB_TOKEN="$GITHUB_TOKEN"
 
-# Apply the GitHub provider configuration
-kubectl apply -f provider-github.yaml
+# Label the namespace to enable GitHub access via policy
+kubectl label namespace terranetes-deployments terranetes.appvia.io/github-token=true
 
-# Verify both providers exist
-kubectl get providers.terraform.appvia.io
 ```
 
 ### Verification Steps - Part 4
 
 ```bash
 # Verify Terranetes controller is running
-kubectl get pods -n terraform-system
+kubectl get pods -n terranetes-system
 # Should show terranetes-controller-xxx running
 
 # Verify CRDs are installed
@@ -569,28 +567,27 @@ kubectl get crd | grep -c terraform.appvia.io
 
 # Verify providers are configured
 kubectl get providers.terraform.appvia.io
-# Should show azure-provider and github-provider
+# Should show azure provider
 
 # Check provider status
-kubectl describe provider azure-provider | grep -A5 "Status:"
-kubectl describe provider github-provider | grep -A5 "Status:"
+kubectl describe provider azure | grep -A5 "Status:"
 ```
 
 **Expected Output:**
 - Terranetes controller pod running (1/1 Ready)
 - Multiple Terranetes CRDs installed
-- Both azure-provider and github-provider visible
+- Azure provider visible and ready
 - Provider status shows "Ready" or similar healthy state
 
 ### Reflection Questions - Part 4
 
 1. **Controller Pattern**: Terranetes uses the Kubernetes controller pattern. How does this differ from running `tofu apply` manually?
 
-2. **Credential Management**: We stored Azure and GitHub credentials in Kubernetes secrets. How does this compare to environment variables? What are the security implications?
+2. **Credential Management**: We stored Azure credentials in Kubernetes secrets and GitHub credentials for the Terraform module. How does this compare to environment variables? What are the security implications?
 
-3. **Provider Resources**: Why do we create Provider resources separately from the actual infrastructure? What flexibility does this provide?
+3. **Provider Resources**: Why do we create Provider resources for cloud providers but not for every service (like GitHub)? What flexibility does this provide?
 
-4. **Namespace Isolation**: We created a `terraform-deployments` namespace for our credentials. How could you use namespaces for multi-tenant infrastructure?
+4. **Namespace Isolation**: We created a `terranetes-deployments` namespace for our credentials. How could you use namespaces for multi-tenant infrastructure?
 
 ## Part 5: GitOps Infrastructure with Terranetes
 
@@ -643,20 +640,20 @@ Terranetes runs OpenTofu inside a Kubernetes job:
 
 ```bash
 # Check the CloudResource status
-kubectl describe cloudresource workshop-infra -n terraform-deployments
+kubectl describe cloudresource workshop-infra -n terranetes-deployments
 
 # Watch the terraform job
-kubectl get jobs -n terraform-deployments --watch
+kubectl get jobs -n terranetes-deployments --watch
 
 # View the terraform execution logs
-kubectl logs -n terraform-deployments -l terraform.appvia.io/configuration=workshop-infra -f
+kubectl logs -n terranetes-deployments -l terraform.appvia.io/configuration=workshop-infra -f
 ```
 
 ### Verify Terranetes Deployment
 
 ```bash
 # Check CloudResource status
-kubectl get cloudresource workshop-infra -n terraform-deployments -o yaml | grep -A10 "status:"
+kubectl get cloudresource workshop-infra -n terranetes-deployments -o yaml | grep -A10 "status:"
 
 # The status should show:
 # - conditions showing success
@@ -675,10 +672,10 @@ az group list --output table | grep terranetes
 kubectl get revisions.terraform.appvia.io
 
 # Verify CloudResource was created and deployed
-kubectl get cloudresources.terraform.appvia.io -n terraform-deployments
+kubectl get cloudresources.terraform.appvia.io -n terranetes-deployments
 
 # Check for successful status
-kubectl get cloudresource workshop-infra -n terraform-deployments \
+kubectl get cloudresource workshop-infra -n terranetes-deployments \
   -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
 # Should output: True
 
@@ -686,7 +683,7 @@ kubectl get cloudresource workshop-infra -n terraform-deployments \
 az group list --output table | grep -i terranetes
 
 # Check terraform state is stored in Kubernetes
-kubectl get secrets -n terraform-deployments | grep tfstate
+kubectl get secrets -n terranetes-deployments | grep tfstate
 ```
 
 **Expected Output:**
@@ -815,7 +812,7 @@ sequenceDiagram
 kubectl get policies.terraform.appvia.io
 
 # Check namespace labels
-kubectl get namespace terraform-deployments --show-labels
+kubectl get namespace terranetes-deployments --show-labels
 
 # Verify self-service capability
 # A user could now create a CloudResource in their namespace
@@ -904,13 +901,13 @@ curl -H "Authorization: token $GITHUB_TOKEN" https://api.github.com/user
 
 ```bash
 # Check controller logs
-kubectl logs -n terraform-system deployment/terranetes-controller
+kubectl logs -n terranetes-system deployment/terranetes-controller
 
 # Check for resource issues
-kubectl describe pod -n terraform-system -l app.kubernetes.io/name=terranetes-controller
+kubectl describe pod -n terranetes-system -l app.kubernetes.io/name=terranetes-controller
 
 # Verify Helm installation
-helm status terranetes-controller -n terraform-system
+helm status terranetes-controller -n terranetes-system
 ```
 
 #### Issue: CloudResource Stuck in Pending
@@ -935,11 +932,11 @@ kubectl logs -n <namespace> job/<job-name>
 
 ```bash
 # If terraform state is locked, check for running jobs
-kubectl get jobs -n terraform-deployments
+kubectl get jobs -n terranetes-deployments
 
 # Force unlock (use with caution!)
 # Delete the job and the CloudResource will retry
-kubectl delete job <job-name> -n terraform-deployments
+kubectl delete job <job-name> -n terranetes-deployments
 ```
 
 ## Cleanup (Optional)
@@ -950,10 +947,10 @@ If you want to clean up all resources created in this lab:
 
 ```bash
 # Delete CloudResources (this destroys the cloud infrastructure)
-kubectl delete cloudresource --all -n terraform-deployments
+kubectl delete cloudresource --all -n terranetes-deployments
 
 # Wait for resources to be destroyed
-kubectl get cloudresource -n terraform-deployments --watch
+kubectl get cloudresource -n terranetes-deployments --watch
 
 # Delete Revisions
 kubectl delete revision --all
@@ -965,9 +962,9 @@ kubectl delete provider --all
 kubectl delete policy --all
 
 # Uninstall Terranetes
-helm uninstall terranetes-controller -n terraform-system
-kubectl delete namespace terraform-system
-kubectl delete namespace terraform-deployments
+helm uninstall terranetes-controller -n terranetes-system
+kubectl delete namespace terranetes-system
+kubectl delete namespace terranetes-deployments
 ```
 
 ### Clean Up Traditional OpenTofu Resources
@@ -1047,7 +1044,7 @@ kubectl get configurations.terraform.appvia.io # List configurations
 tnctl describe cloudresource <name>             # Detailed view (if CLI installed)
 
 # Debugging
-kubectl logs -n terraform-system deployment/terranetes-controller
+kubectl logs -n terranetes-system deployment/terranetes-controller
 kubectl describe cloudresource <name> -n <namespace>
 kubectl get jobs -n <namespace>
 ```

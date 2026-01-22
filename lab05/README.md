@@ -17,7 +17,6 @@ lab05/
 ├── terranetes/                  # Kubernetes-native infrastructure configs
 │   ├── namespace.yaml           # Namespace for deployments
 │   ├── provider-azure.yaml      # Azure provider for Terranetes
-│   ├── provider-github.yaml     # GitHub provider for Terranetes
 │   ├── infrastructure-revision.yaml  # Reusable infrastructure template
 │   ├── cloudresource-example.yaml    # Example developer request
 │   └── github-policy.yaml       # Policy for credential injection
