@@ -17,7 +17,6 @@ lab05/
 ├── terranetes/                  # Kubernetes-native infrastructure configs
 │   ├── namespace.yaml           # Namespace for deployments
 │   ├── provider-azure.yaml      # Azure provider for Terranetes
-│   ├── provider-github.yaml     # GitHub provider for Terranetes
 │   ├── infrastructure-revision.yaml  # Reusable infrastructure template
 │   ├── cloudresource-example.yaml    # Example developer request
 │   └── github-policy.yaml       # Policy for credential injection
@@ -70,9 +69,16 @@ kubectl apply -f lab05/terranetes/cloudresource-example.yaml
 
 ## What Gets Created
 
-Both approaches create the same infrastructure:
-- **Azure Resource Group**: A logical container for Azure resources
+### Traditional OpenTofu (Part 3)
+Both Azure and GitHub resources:
+- **Azure Resource Group**: A logical container for Azure resources  
 - **GitHub Repository**: A code repository with standard settings
+
+### Terranetes (Parts 4-6)
+Focuses on cloud provider pattern:
+- **Azure Resource Group**: Managed through Terranetes cloud provider integration
+- Demonstrates Kubernetes-native infrastructure management
+- **Note**: GitHub resources use traditional OpenTofu patterns in Part 3, but Terranetes examples focus on Azure cloud provider integration
 
 ## Cleanup
 

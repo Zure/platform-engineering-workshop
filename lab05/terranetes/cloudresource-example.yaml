@@ -29,14 +29,10 @@ spec:
   enableDriftDetection: true
   
   # Variable values for this instance
-  # These override the defaults in the Revision
+  # Only required variables need to be specified
   variables:
     resource_group_name: "rg-terranetes-workshop-dev"
-    location: "swedencentral"
-    environment: "dev"
     github_repo_name: "terranetes-workshop-infra"
-    github_repo_description: "Infrastructure created via Terranetes in Platform Engineering Workshop"
-    github_repo_visibility: "public"
   
   # Write connection details to a Kubernetes secret
   # This makes outputs available to applications
@@ -46,8 +42,9 @@ spec:
 ---
 # Instructions for customizing this CloudResource:
 #
-# 1. Edit the variables section with your specific values
-# 2. Make sure resource names are unique to you
-# 3. Apply with: kubectl apply -f cloudresource-example.yaml
-# 4. Check status: kubectl get cloudresource workshop-infra -n terraform-deployments
-# 5. View outputs: kubectl get secret workshop-infra-outputs -n terraform-deployments -o yaml
+# 1. Edit the variables section with your specific values:
+#    - resource_group_name: Make unique to avoid conflicts
+#    - github_repo_name: Choose a unique repository name
+# 2. Apply with: kubectl apply -f cloudresource-example.yaml
+# 3. Check status: kubectl get cloudresource workshop-infra -n terraform-deployments
+# 4. View outputs: kubectl get secret workshop-infra-outputs -n terraform-deployments -o yaml

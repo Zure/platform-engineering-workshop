@@ -4,10 +4,12 @@ Welcome to LAB05! In this lab, you'll learn how to provision infrastructure acro
 
 - Deployed multi-provider infrastructure using OpenTofu (Azure + GitHub)
 - Understood the strength of Infrastructure as Code for managing resources across providers
-- Installed and configured Terranetes in your Kubernetes cluster
+- Installed and configured Terranetes in your Kubernetes cluster  
 - Converted traditional IaC workflows to GitOps with Terranetes
 - Implemented platform engineering patterns for self-service infrastructure
 - Experienced Kubernetes-native infrastructure management
+
+**Note**: In the Terranetes sections, we'll focus on Azure resources as the primary cloud provider pattern, demonstrating how Terranetes works best with cloud providers rather than SaaS APIs.
 
 ## Prerequisites
 
@@ -541,20 +543,9 @@ kubectl get providers.terraform.appvia.io
 
 ### Configure GitHub Provider for Terranetes
 
-Create a secret for GitHub authentication:
+**Note**: For this workshop, we'll focus on Azure as the primary cloud provider. GitHub provider integration follows traditional OpenTofu patterns but isn't part of the Terranetes cloud provider model we're demonstrating.
 
-```bash
-# Create GitHub credentials secret
-kubectl create secret generic github-credentials \
-  --namespace terraform-deployments \
-  --from-literal=GITHUB_TOKEN="$GITHUB_TOKEN"
-
-# Apply the GitHub provider configuration
-kubectl apply -f provider-github.yaml
-
-# Verify both providers exist
-kubectl get providers.terraform.appvia.io
-```
+If you want to experiment with GitHub in traditional OpenTofu (Part 3), the credentials are already configured from earlier steps.
 
 ### Verification Steps - Part 4
 
@@ -567,19 +558,18 @@ kubectl get pods -n terraform-system
 kubectl get crd | grep -c terraform.appvia.io
 # Should show 4 or more CRDs
 
-# Verify providers are configured
+# Verify providers are configured (only azure-provider for Terranetes)
 kubectl get providers.terraform.appvia.io
-# Should show azure-provider and github-provider
+# Should show azure-provider
 
 # Check provider status
 kubectl describe provider azure-provider | grep -A5 "Status:"
-kubectl describe provider github-provider | grep -A5 "Status:"
 ```
 
 **Expected Output:**
 - Terranetes controller pod running (1/1 Ready)
-- Multiple Terranetes CRDs installed
-- Both azure-provider and github-provider visible
+- Multiple Terranetes CRDs installed  
+- azure-provider visible and ready
 - Provider status shows "Ready" or similar healthy state
 
 ### Reflection Questions - Part 4

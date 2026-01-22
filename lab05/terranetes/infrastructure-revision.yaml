@@ -2,9 +2,9 @@
 # A Revision is a reusable template that platform teams create
 # and developers can instantiate via CloudResources
 #
-# This Revision creates the same infrastructure as the OpenTofu configuration:
+# This Revision uses the workshop's OpenTofu module to create:
 # - Azure Resource Group
-# - GitHub Repository
+# - GitHub Repository (via Azure provider integration)
 
 apiVersion: terraform.appvia.io/v1alpha1
 kind: Revision
@@ -16,121 +16,21 @@ spec:
   
   # Human-readable description
   description: |
-    Creates a complete infrastructure setup for a workshop participant:
-    - Azure Resource Group for hosting Azure resources
-    - GitHub Repository for storing infrastructure code
+    Creates infrastructure setup for a workshop participant using the 
+    workshop's OpenTofu module from the GitHub repository.
     
-    This demonstrates multi-provider infrastructure management with Terranetes.
+    This demonstrates how Terranetes can use existing Terraform/OpenTofu 
+    modules from Git repositories as cloud provider templates.
   
   # OpenTofu/Terraform configuration
   configuration:
-    # Required providers
+    # Required providers - only Azure for cloud provider compatibility
     providerRefs:
       - name: azure-provider
-      - name: github-provider
     
-    # Source of the OpenTofu modules
-    # For this workshop, we use inline configuration
-    module: |
-      terraform {
-        required_version = ">= 1.0"
-        
-        required_providers {
-          azurerm = {
-            source  = "hashicorp/azurerm"
-            version = "~> 4.0"
-          }
-          github = {
-            source  = "integrations/github"
-            version = "~> 6.0"
-          }
-        }
-      }
-      
-      provider "azurerm" {
-        features {
-          resource_group {
-            prevent_deletion_if_contains_resources = false
-          }
-        }
-      }
-      
-      provider "github" {}
-      
-      # Variables exposed to users
-      variable "resource_group_name" {
-        description = "Name of the Azure Resource Group"
-        type        = string
-      }
-      
-      variable "location" {
-        description = "Azure region"
-        type        = string
-        default     = "swedencentral"
-      }
-      
-      variable "environment" {
-        description = "Environment (dev, staging, prod)"
-        type        = string
-        default     = "dev"
-      }
-      
-      variable "github_repo_name" {
-        description = "Name of the GitHub repository"
-        type        = string
-      }
-      
-      variable "github_repo_description" {
-        description = "Repository description"
-        type        = string
-        default     = "Infrastructure repository managed by Terranetes"
-      }
-      
-      variable "github_repo_visibility" {
-        description = "Repository visibility (public/private)"
-        type        = string
-        default     = "public"
-      }
-      
-      # Azure Resource Group
-      resource "azurerm_resource_group" "main" {
-        name     = var.resource_group_name
-        location = var.location
-        
-        tags = {
-          environment = var.environment
-          managed-by  = "terranetes"
-          workshop    = "platform-engineering"
-        }
-      }
-      
-      # GitHub Repository
-      resource "github_repository" "main" {
-        name        = var.github_repo_name
-        description = var.github_repo_description
-        visibility  = var.github_repo_visibility
-        auto_init   = true
-        has_issues  = true
-        
-        topics = ["terranetes", "infrastructure", "workshop"]
-      }
-      
-      # Outputs
-      output "azure_resource_group_name" {
-        value = azurerm_resource_group.main.name
-      }
-      
-      output "azure_resource_group_id" {
-        value = azurerm_resource_group.main.id
-      }
-      
-      output "github_repository_url" {
-        value = github_repository.main.html_url
-      }
-      
-      output "github_repository_clone_url" {
-        value = github_repository.main.http_clone_url
-      }
+    # Source module from workshop repository
+    # Uses the Terranetes-compatible OpenTofu module
+    source: "https://github.com/Zure/platform-engineering-workshop.git//lab05/opentofu?ref=main"
   
   # Variables that users must/can provide
   inputs:
@@ -138,26 +38,6 @@ spec:
       description: "Name of the Azure Resource Group to create"
       required: true
       
-    - key: location
-      description: "Azure region for resources"
-      default:
-        value: "swedencentral"
-      
-    - key: environment
-      description: "Environment name (dev, staging, prod)"
-      default:
-        value: "dev"
-      
     - key: github_repo_name
       description: "Name of the GitHub repository to create"
       required: true
-      
-    - key: github_repo_description
-      description: "Description for the GitHub repository"
-      default:
-        value: "Infrastructure repository managed by Terranetes"
-      
-    - key: github_repo_visibility
-      description: "Repository visibility (public/private)"
-      default:
-        value: "public"
