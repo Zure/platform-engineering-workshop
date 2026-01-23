@@ -28,7 +28,7 @@ Workshop for Platform Engineering in a day
 - create namespaces through GitOps
 - multi-tenant self-service workflow
 
-### Lunch / Dinner
+### Lunch
 
 ### 45 minutes - Exploring the CNCF landscape to help your self service
 - ASO
