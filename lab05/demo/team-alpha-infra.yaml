@@ -1,0 +1,22 @@
+apiVersion: terraform.appvia.io/v1alpha1
+kind: CloudResource
+metadata:
+  name: team-alpha-infrastructure
+  namespace: team-alpha
+spec:
+  # Reference to the infrastructure template (Plan/Revision)
+  plan:
+    name: workshop-infra
+    revision: v1.0.0
+  
+  # Reference to the cloud provider
+  providerRef:
+    name: azure
+  
+  # Variables specific to team-alpha
+  variables:
+    resource_group_name: rg-team-alpha-workshop-demo
+    github_repo_name: team-alpha-infrastructure
+  
+  # Enable auto-approval for demo purposes
+  enableAutoApproval: true
