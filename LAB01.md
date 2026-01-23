@@ -386,6 +386,12 @@ kubectl get all -n default
 - Ensure Docker Desktop is running on Windows/macOS
 - On Linux, start Docker with: `sudo systemctl start docker`
 
+#### Kind not starting up hanging at ✓ Starting control-plane 🕹️ 
+- If on windows could be an old WSL. update it to newest
+```
+wsl --update --pre-release
+```
+
 #### kubectl Not Finding Cluster
 ```bash
 # Set the correct context
