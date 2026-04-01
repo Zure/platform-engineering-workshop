@@ -1,0 +1,86 @@
+# CompositeResourceDefinition (XRD) for AppStorage
+# An XRD defines a new custom API — the "AppStorage" concept.
+# Platform engineers own this definition; developers use the simpler
+# Claim API that it exposes (XAppStorage → AppStorageClaim).
+#
+# Apply with: kubectl apply -f xrd.yaml
+# Check:      kubectl get xrds
+
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xappstorages.platform.workshop.io
+spec:
+  group: platform.workshop.io
+
+  # The Composite Resource (XR) — used by platform engineers directly
+  names:
+    kind: XAppStorage
+    plural: xappstorages
+
+  # The Claim — the simplified API exposed to application teams
+  claimNames:
+    kind: AppStorageClaim
+    plural: appstorageclaims
+
+  # Which namespaces can use Claims (omit to allow all)
+  # defaultCompositionRef:
+  #   name: appstorage-composition
+
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              description: AppStorage specification
+              properties:
+                parameters:
+                  type: object
+                  description: Configuration parameters for the storage resources
+                  required:
+                    - resourceGroupName
+                    - storageAccountName
+                    - location
+                  properties:
+                    resourceGroupName:
+                      type: string
+                      description: >-
+                        Name of the Azure Resource Group to create.
+                        Must be unique within your Azure subscription.
+                    storageAccountName:
+                      type: string
+                      description: >-
+                        Globally unique name for the Storage Account (3-24 lowercase
+                        alphanumeric characters).
+                      minLength: 3
+                      maxLength: 24
+                      pattern: "^[a-z0-9]{3,24}$"
+                    location:
+                      type: string
+                      description: Azure region for the resources (e.g. swedencentral).
+                      default: swedencentral
+                    environment:
+                      type: string
+                      description: Environment tag applied to all resources.
+                      default: workshop
+                      enum:
+                        - dev
+                        - staging
+                        - prod
+                        - workshop
+              required:
+                - parameters
+            status:
+              type: object
+              properties:
+                resourceGroupId:
+                  type: string
+                  description: Azure Resource ID of the provisioned Resource Group
+                storageAccountId:
+                  type: string
+                  description: Azure Resource ID of the provisioned Storage Account

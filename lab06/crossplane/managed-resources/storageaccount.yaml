@@ -1,0 +1,35 @@
+# Azure StorageAccount - Managed Resource
+# This StorageAccount is a direct Managed Resource that references the
+# ResourceGroup created alongside it. Crossplane will create it in Azure
+# and continuously reconcile its desired state.
+#
+# Important: Apply the ResourceGroup first and wait for it to be READY
+# before applying this manifest.
+#
+# Apply with: kubectl apply -f storageaccount.yaml
+# Watch:      kubectl get storageaccounts workshop-sa -w
+# Describe:   kubectl describe storageaccounts workshop-sa
+
+apiVersion: storage.azure.upbound.io/v1beta2
+kind: Account
+metadata:
+  name: workshop-sa
+  annotations:
+    # Azure storage account names must be globally unique, lowercase, 3-24 chars
+    crossplane.io/external-name: stwsyournamecrossplane  # Replace yourname (max 24 chars)
+spec:
+  forProvider:
+    location: swedencentral
+    resourceGroupNameRef:
+      # Reference by Kubernetes name — Crossplane resolves to the Azure RG name
+      name: workshop-rg
+    accountTier: Standard
+    accountReplicationType: LRS
+    enableHttpsTrafficOnly: true
+    minTlsVersion: TLS1_2
+    tags:
+      environment: workshop
+      managed-by: crossplane
+      lab: lab06
+  providerConfigRef:
+    name: default

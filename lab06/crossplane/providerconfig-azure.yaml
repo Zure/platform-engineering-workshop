@@ -1,0 +1,26 @@
+# Azure ProviderConfig for Crossplane
+# This tells Crossplane how to authenticate with Azure.
+# We store the Service Principal credentials in a Kubernetes Secret and
+# reference it here — the same SP created in LAB03.
+#
+# Prerequisites:
+#   Create the secret first (see LAB06.md Part 2):
+#     kubectl create secret generic azure-sp-creds \
+#       --from-literal=credentials="$(cat azure-sp.json)" \
+#       --namespace crossplane-system
+#
+# Apply with: kubectl apply -f providerconfig-azure.yaml
+# Check status: kubectl get providerconfigs
+
+apiVersion: azure.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: default
+spec:
+  # azure-credentials secret holds the Service Principal JSON
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: azure-sp-creds
+      key: credentials

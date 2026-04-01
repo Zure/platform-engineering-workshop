@@ -1,0 +1,24 @@
+# Azure ResourceGroup - Managed Resource
+# A Managed Resource (MR) is the lowest-level Crossplane abstraction.
+# It maps 1:1 to a real Azure resource. Crossplane reconciles this
+# against Azure continuously.
+#
+# Apply with: kubectl apply -f resourcegroup.yaml
+# Watch:      kubectl get resourcegroup workshop-rg -w
+# Describe:   kubectl describe resourcegroup workshop-rg
+
+apiVersion: azure.upbound.io/v1beta1
+kind: ResourceGroup
+metadata:
+  name: workshop-rg
+  annotations:
+    crossplane.io/external-name: rg-yourname-crossplane-workshop  # Replace yourname
+spec:
+  forProvider:
+    location: swedencentral
+    tags:
+      environment: workshop
+      managed-by: crossplane
+      lab: lab06
+  providerConfigRef:
+    name: default

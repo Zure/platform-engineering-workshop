@@ -69,6 +69,13 @@ Workshop for Platform Engineering in a day
 - Convert traditional IaC workflows to GitOps with Terranetes
 - Implement platform engineering patterns for self-service infrastructure
 
+### [LAB06: Deploying with Crossplane](LAB06.md)
+- Install Crossplane in your Kind cluster and configure the Azure provider
+- Deploy Azure resources directly as Managed Resources
+- Create platform abstractions using XRDs and Compositions
+- Enable developer self-service via Claims synced through ArgoCD
+- (Stretch) Provision GitHub repositories with the GitHub provider
+
 #### Comments or feedback how to improve let us know before you go home or connect here:
 - https://www.linkedin.com/in/geertvandercruijsen/
 - https://www.linkedin.com/in/cvs79/
