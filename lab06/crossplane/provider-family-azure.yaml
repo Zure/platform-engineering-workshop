@@ -10,7 +10,9 @@ kind: Provider
 metadata:
   name: upbound-provider-family-azure
 spec:
-  package: xpkg.upbound.io/upbound/provider-family-azure:v1
+  # Pin to v1.13.1 — required for compatibility with provider-azure-storage:v1
+  # (provider-azure-storage requires provider-family-azure@v1.13.1)
+  package: xpkg.upbound.io/upbound/provider-family-azure:v1.13.1
   packagePullPolicy: IfNotPresent
   revisionActivationPolicy: Automatic
 

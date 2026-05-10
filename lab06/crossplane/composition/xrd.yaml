@@ -23,10 +23,6 @@ spec:
     kind: AppStorageClaim
     plural: appstorageclaims
 
-  # Which namespaces can use Claims (omit to allow all)
-  # defaultCompositionRef:
-  #   name: appstorage-composition
-
   versions:
     - name: v1alpha1
       served: true

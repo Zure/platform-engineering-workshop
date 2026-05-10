@@ -90,32 +90,25 @@ crossplane-rbac-manager-xxxxxxxxxx-xxxxx    1/1     Running   0          60s
 
 The Crossplane CLI (`crossplane`) provides useful commands for managing packages and debugging.
 
-#### macOS
+#### macOS / Linux
 ```bash
-# Using Homebrew
-brew install crossplane/tap/crossplane
-```
-
-#### Linux
-```bash
-# Download the latest release
+# Download and install the Crossplane CLI
 curl -sL "https://raw.githubusercontent.com/crossplane/crossplane/main/install.sh" | sh
 sudo mv crossplane /usr/local/bin
 ```
 
 #### Windows
 ```powershell
-# Using Chocolatey
-choco install crossplane-cli
-
-# Or download from GitHub releases
+# Download from GitHub releases
 # https://github.com/crossplane/crossplane/releases
 ```
 
 #### Verify Installation
 ```bash
-crossplane --version
-# Example: v1.15.0
+crossplane version
+# Example output:
+# Client Version: v2.2.1
+# Server Version: v2.2.1
 ```
 
 ### Verification Steps - Part 1
@@ -128,7 +121,7 @@ kubectl get pods -n crossplane-system
 kubectl get crds | grep crossplane.io
 
 # Verify the CLI
-crossplane --version
+crossplane version
 ```
 
 **Expected Output:**
@@ -160,12 +153,12 @@ kubectl get providers -w
 
 You should see the providers move from `Installing` to `Healthy`:
 ```
-NAME                              INSTALLED   HEALTHY   PACKAGE                                              AGE
-upbound-provider-azure-storage    True        True      xpkg.upbound.io/upbound/provider-azure-storage:v1   2m
-upbound-provider-family-azure     True        True      xpkg.upbound.io/upbound/provider-family-azure:v1    2m
+NAME                              INSTALLED   HEALTHY   PACKAGE                                                  AGE
+upbound-provider-azure-storage    True        True      xpkg.upbound.io/upbound/provider-azure-storage:v1        2m
+upbound-provider-family-azure     True        True      xpkg.upbound.io/upbound/provider-family-azure:v1.13.1    2m
 ```
 
-> **Note**: The family provider installs CRDs for all Azure services. Using sub-providers (like `provider-azure-storage`) reduces the CRD footprint and speeds up installation.
+> **Note**: The `provider-azure-storage:v1` sub-provider requires `provider-family-azure` at a specific version (v1.13.1). The support file pins `provider-family-azure` to `v1.13.1` to ensure compatibility. The family provider installs CRDs for all Azure services; using sub-providers reduces the CRD footprint and speeds up installation.
 
 ### Create Azure Credentials Secret
 
@@ -223,8 +216,8 @@ kubectl get providerconfigs
 
 **Expected Output:**
 ```
-NAME      AGE   SYNCED
-default   10s   True
+NAME      AGE   SECRET-NAME
+default   10s   azure-sp-creds
 ```
 
 ### Verification Steps - Part 2
@@ -373,6 +366,8 @@ Crossplane compositions involve three resources:
 
 ### Apply the XRD
 
+> **Note**: In Crossplane v2, `apiextensions.crossplane.io/v1` XRDs are deprecated. You will see a deprecation warning when applying — this is expected and not a blocker. The v2 XRD API does not yet support Claims, so v1 is still required for this lab.
+
 ```bash
 kubectl apply -f lab06/crossplane/composition/xrd.yaml
 
@@ -390,6 +385,31 @@ xappstorages.platform.workshop.io       True          True      10s
 Two new CRDs are now available in your cluster:
 - `xappstorages.platform.workshop.io` — the Composite Resource (cluster-scoped, for platform team)
 - `appstorageclaims.platform.workshop.io` — the Claim (namespace-scoped, for application teams)
+
+### Install the Patch-and-Transform Function
+
+Crossplane v2 compositions use **Pipeline mode** with composition functions instead of inline `spec.resources`. The `function-patch-and-transform` function provides the same patch-based resource templating as the older inline style.
+
+```bash
+# Install the function
+kubectl apply -f - <<EOF
+apiVersion: pkg.crossplane.io/v1beta1
+kind: Function
+metadata:
+  name: function-patch-and-transform
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.8.1
+EOF
+
+# Wait for it to be Healthy
+kubectl get functions -w
+```
+
+**Expected Output:**
+```
+NAME                           INSTALLED   HEALTHY   PACKAGE                                                                  AGE
+function-patch-and-transform   True        True      xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.8.1   30s
+```
 
 ### Apply the Composition
 
@@ -428,8 +448,9 @@ spec:
     name: appstorage-composition
 EOF
 
-# Watch all resources being created
-kubectl get xappstorages,resourcegroups,accounts -w
+# Watch all resources being created (use separate commands — -w doesn't support multiple resource types)
+kubectl get xappstorages -w &
+kubectl get resourcegroups,accounts
 ```
 
 When the XR is ready, you will see:
@@ -720,8 +741,9 @@ Clean up all resources created in this lab. **Important**: always delete Claims 
 # Claim → XR → MRs → Azure resources
 kubectl delete appstorageclaims --all -n team-alpha
 
-# Watch the cascade
-kubectl get appstorageclaims,xappstorages,resourcegroups,accounts -w
+# Watch the cascade (use separate commands — -w doesn't support multiple resource types)
+kubectl get appstorageclaims -n team-alpha -w &
+kubectl get xappstorages,resourcegroups,accounts
 
 # Verify Azure resources are gone
 az group list --query "[?tags.\"managed-by\"=='crossplane']" -o table
