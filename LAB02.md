@@ -238,7 +238,7 @@ git push origin main
 
 ```bash
 # Verify the directory structure
-tree . -L 2 2>/dev/null || find . -maxdepth 2 -not -path '*/\.git/*'
+tree . -L 3 2>/dev/null || find . -maxdepth 3 -not -path '*/\.git/*'
 
 # Verify git status
 git log --oneline

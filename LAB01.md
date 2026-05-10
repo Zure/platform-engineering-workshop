@@ -193,8 +193,8 @@ ArgoCD is a declarative, GitOps continuous delivery tool for Kubernetes.
 # Create namespace for ArgoCD
 kubectl create namespace argocd
 
-# Install ArgoCD
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+# Install ArgoCD (--server-side is required to handle large CRD manifests)
+kubectl apply -n argocd --server-side -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 # Wait for all pods to be ready (this may take a few minutes)
 kubectl wait --for=condition=available --timeout=300s deployment/argocd-server -n argocd
@@ -205,8 +205,8 @@ kubectl patch configmap argocd-cmd-params-cm -n argocd --type merge -p '{"data":
 # Restart the ArgoCD server to apply the configuration
 kubectl rollout restart deployment argocd-server -n argocd
 
-# Wait for the server to be ready again
-kubectl wait --for=condition=available --timeout=120s deployment/argocd-server -n argocd
+# Wait for the rollout to fully complete (ensures the new pod with insecure mode is running)
+kubectl rollout status deployment/argocd-server -n argocd --timeout=120s
 ```
 
 ### Access ArgoCD UI

@@ -376,8 +376,12 @@ MEMORY_LIMIT=$((MEMORY_GB * 2))
 # Get current date
 DATE=$(date +%Y-%m-%d)
 
+# Resolve repo root (two levels up from this script: helpers/ -> templates/ -> repo root)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
 # Generate YAML
-OUTPUT_DIR="../namespaces/${ENVIRONMENT}"
+OUTPUT_DIR="${REPO_ROOT}/namespaces/${ENVIRONMENT}"
 OUTPUT_FILE="${OUTPUT_DIR}/${TEAM_NAME}-namespace.yaml"
 
 # Create directory if it doesn't exist
@@ -455,7 +459,7 @@ echo "Next Steps:"
 echo "=================================="
 echo "1. Review the generated YAML above"
 echo "2. Commit the file to git:"
-echo "   cd $(dirname $OUTPUT_DIR)"
+echo "   cd ${REPO_ROOT}"
 echo "   git add $OUTPUT_FILE"
 echo "   git commit -m 'Request namespace for ${TEAM_NAME} ${ENVIRONMENT}'"
 echo "   git push origin main"
@@ -466,7 +470,7 @@ echo
 read -p "Would you like to commit this file now? (y/n): " COMMIT_NOW
 
 if [[ "$COMMIT_NOW" == "y" || "$COMMIT_NOW" == "Y" ]]; then
-    cd "$(dirname $OUTPUT_DIR)"
+    cd "${REPO_ROOT}"
     git add "$OUTPUT_FILE"
     git commit -m "Request namespace for ${TEAM_NAME} in ${ENVIRONMENT} environment
 
@@ -521,8 +525,12 @@ fi
 # Get current date
 DATE=$(date +%Y-%m-%d)
 
+# Resolve repo root (two levels up from this script: helpers/ -> templates/ -> repo root)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+
 # Generate YAML
-OUTPUT_DIR="../azure-resources/${TEAM_NAME}"
+OUTPUT_DIR="${REPO_ROOT}/azure-resources/${TEAM_NAME}"
 OUTPUT_FILE="${OUTPUT_DIR}/${STORAGE_NAME}.yaml"
 
 # Create directory if it doesn't exist
@@ -594,7 +602,7 @@ echo "Next Steps:"
 echo "=================================="
 echo "1. Review the generated YAML above"
 echo "2. Commit the file to git:"
-echo "   cd $(dirname $OUTPUT_DIR)"
+echo "   cd ${REPO_ROOT}"
 echo "   git add $OUTPUT_FILE"
 echo "   git commit -m 'Request storage account ${STORAGE_NAME}'"
 echo "   git push origin main"
@@ -605,7 +613,7 @@ echo
 read -p "Would you like to commit this file now? (y/n): " COMMIT_NOW
 
 if [[ "$COMMIT_NOW" == "y" || "$COMMIT_NOW" == "Y" ]]; then
-    cd "$(dirname $OUTPUT_DIR)"
+    cd "${REPO_ROOT}"
     git add "$OUTPUT_FILE"
     git commit -m "Request Azure storage account ${STORAGE_NAME}
 
