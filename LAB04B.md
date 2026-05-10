@@ -47,12 +47,13 @@ Think of resource management as a ladder:
 
 ### Lab Flow
 
-1. Install KRO in your Kind cluster
-2. Create a simple ResourceGroup to understand KRO concepts
-3. Build an "AppDatabase" abstraction that creates Azure resources
-4. Create an "AppStorage" abstraction for object storage
-5. Deploy applications using your new abstractions
-6. Connect everything to ArgoCD for GitOps
+1. Update Azure Service Operator to include PostgreSQL CRDs
+2. Install KRO in your Kind cluster
+3. **Set up ArgoCD** — project and ApplicationSet watching your Git repo
+4. Create ResourceGraphDefinitions for your abstractions (committed to Git, deployed by ArgoCD)
+5. Create an "AppDatabase" abstraction that provisions a PostgreSQL server
+6. Create an "AppStorage" abstraction for object storage
+7. Test the complete self-service workflow: Git commit → ArgoCD → KRO → Azure
 
 ## Part 1: Updating Azure Service Operator for Additional Resources
 
@@ -169,19 +170,19 @@ kubectl get pods -n kro
 
 # Check that KRO CRDs are installed
 kubectl get crd | grep kro
-# Should show: resourcegroups.kro.run
+# Should show: resourcegraphdefinitions.kro.run
 
 # Check the Helm release status
 helm -n kro status kro
 
-# Verify KRO is ready to create resource groups
+# Verify KRO is ready to create resource graph definitions
 kubectl api-resources | grep kro
 ```
 
 **Expected Output:**
 - Helm release "kro" should show status "deployed"
 - KRO pod should show 1/1 containers READY and status Running
-- The `resourcegroups.kro.run` CRD should be installed
+- The `resourcegraphdefinitions.kro.run` CRD should be installed
 - KRO should be running in the `kro` namespace (not `kro-system`)
 
 ### 🤔 Reflection Questions - Part 2
@@ -196,18 +197,123 @@ Take a moment to think about what KRO brings to the platform:
 
 4. **Comparison to Crossplane**: If you've heard of Crossplane, how might KRO be similar or different? What problems do both tools solve?
 
-5. **Resource Types**: KRO creates ResourceGroups (capital G). How is this different from Azure Resource Groups? What does KRO's ResourceGroup represent?
+5. **Resource Types**: KRO creates ResourceGraphDefinitions. How is this different from Azure Resource Groups? What does KRO's ResourceGraphDefinition represent?
 
-## Part 3: Understanding KRO ResourceGroups
+## Part 3: Setting Up ArgoCD for KRO Resources
 
-A KRO **ResourceGroup** (not to be confused with Azure Resource Groups) is a template that defines:
+Before creating any KRO definitions or developer resources, we set up ArgoCD to manage them. This means everything flows through Git → ArgoCD → Kubernetes from the start.
+
+### Create an ArgoCD Project for Platform Abstractions
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-abstractions
+  namespace: argocd
+spec:
+  description: "Project for KRO abstractions and developer resources"
+
+  sourceRepos:
+  - 'https://github.com/$GITHUB_USERNAME/platform-self-service.git'
+
+  destinations:
+  - namespace: default
+    server: https://kubernetes.default.svc
+  - namespace: kro
+    server: https://kubernetes.default.svc
+
+  clusterResourceWhitelist:
+  - group: 'kro.run'
+    kind: '*'
+  - group: 'apiextensions.k8s.io'
+    kind: 'CustomResourceDefinition'
+
+  namespaceResourceWhitelist:
+  - group: 'kro.run'
+    kind: '*'
+  - group: 'resources.azure.com'
+    kind: '*'
+  - group: 'storage.azure.com'
+    kind: '*'
+  - group: 'dbforpostgresql.azure.com'
+    kind: '*'
+  - group: ''
+    kind: 'Secret'
+EOF
+
+argocd proj get platform-abstractions --insecure
+```
+
+### Create an ArgoCD ApplicationSet
+
+The ApplicationSet watches two directories in your repo — `kro-definitions/` (platform team's abstractions) and `developer-resources/` (developer requests) — and creates a separate ArgoCD Application for each.
+
+```bash
+cat << EOF | kubectl apply -f -
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-abstractions
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/$GITHUB_USERNAME/platform-self-service.git
+        revision: HEAD
+        directories:
+          - path: kro-definitions
+          - path: developer-resources
+  template:
+    metadata:
+      name: 'kro-{{path.basename}}'
+    spec:
+      project: platform-abstractions
+      source:
+        repoURL: https://github.com/$GITHUB_USERNAME/platform-self-service.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: default
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=false
+EOF
+```
+
+### ✅ Verification Steps - Part 3
+
+```bash
+# Verify ArgoCD project exists
+argocd proj get platform-abstractions --insecure
+
+# The ApplicationSet will generate applications once the directories exist in Git
+kubectl get applicationset platform-abstractions -n argocd
+```
+
+**Expected Output:**
+- ArgoCD project `platform-abstractions` exists with correct source repos and destinations
+- ApplicationSet `platform-abstractions` exists (applications will appear after first Git commit in Part 4)
+
+---
+
+## Part 4: Understanding KRO ResourceGraphDefinitions
+
+A KRO **ResourceGraphDefinition** (RGD) is a template that defines:
 - What custom resource developers will create (the schema)
 - What Kubernetes resources should be generated (the template)
 - How user inputs map to generated resources (the logic)
 
-### Create Your First ResourceGroup
+> **Note**: Older KRO documentation may refer to this as `ResourceGroup`. As of KRO v0.2+, the kind is `ResourceGraphDefinition` and the CRD is `resourcegraphdefinitions.kro.run`.
 
-Let's start with a simple example that creates an Azure Resource Group:
+### Create Your First ResourceGraphDefinition
+
+Let's start with a simple example that creates an Azure Resource Group. We commit it to Git and let ArgoCD deploy it:
 
 ```bash
 # Navigate to your platform-self-service repository from LAB02
@@ -216,31 +322,24 @@ cd ~/platform-self-service
 # Create a directory for KRO definitions
 mkdir -p kro-definitions
 
-# Create a simple ResourceGroup that abstracts Azure Resource Groups
+# Create a simple ResourceGraphDefinition that abstracts Azure Resource Groups
 cat << 'EOF' > kro-definitions/app-namespace-rg.yaml
 apiVersion: kro.run/v1alpha1
-kind: ResourceGroup
+kind: ResourceGraphDefinition
 metadata:
   name: appnamespace
   namespace: default
 spec:
   # Define the schema - what developers will specify
+  # Uses SimpleSchema syntax: fieldName: type | constraint
   schema:
     apiVersion: v1alpha1
     kind: AppNamespace
     spec:
       # Developers only need to provide:
-      appName:
-        type: string
-        description: "Name of the application"
-      environment:
-        type: string
-        description: "Environment (dev, staging, prod)"
-        default: "dev"
-      location:
-        type: string
-        description: "Azure region"
-        default: "swedencentral"
+      appName: string
+      environment: string | default=dev
+      location: string | default=swedencentral
 
   # Define what resources to create
   resources:
@@ -260,29 +359,34 @@ spec:
           created-by: platform-team
 EOF
 
-# Commit to Git
+# Commit to Git — ArgoCD will deploy it automatically
 git add kro-definitions/
-git commit -m "Add KRO ResourceGroup for App Namespace abstraction"
+git commit -m "Add KRO ResourceGraphDefinition for AppNamespace abstraction"
 git push origin main
 ```
 
-### Apply the ResourceGroup
+### ArgoCD Deploys the ResourceGraphDefinition
+
+ArgoCD detects the new `kro-definitions/` directory and creates the `kro-kro-definitions` application automatically. Wait ~30 seconds for the poll cycle, then check:
 
 ```bash
-# Apply the ResourceGroup definition
-kubectl apply -f kro-definitions/app-namespace-rg.yaml
+# Watch ArgoCD pick up and sync the new application
+argocd app list --insecure | grep kro
 
-# Verify the ResourceGroup was created
-kubectl get resourcegroup appnamespace -n default
+# Verify the ResourceGraphDefinition was deployed by ArgoCD
+argocd app get kro-kro-definitions --insecure
+
+# Verify the ResourceGraphDefinition is active
+kubectl get resourcegraphdefinition appnamespace -n default
 
 # Check what CRD was created for developers
 kubectl get crd | grep appnamespace
-# Should show: appnamespaces.v1alpha1.example.com or similar
+# Should show: appnamespaces.kro.run
 ```
 
-### Test the Abstraction
+### Test the Abstraction via GitOps
 
-Now developers can use the simple `AppNamespace` resource:
+Now developers request an `AppNamespace` by committing a YAML file — ArgoCD syncs it automatically:
 
 ```bash
 # Create a test directory for developer resources
@@ -301,16 +405,18 @@ spec:
   location: swedencentral
 EOF
 
-# Apply it
-kubectl apply -f developer-resources/my-first-app.yaml
-
-# Watch the Azure Resource Group being created
-kubectl get resourcegroup --watch
+# Commit and push — ArgoCD will sync it
+git add developer-resources/
+git commit -m "Add first app using KRO AppNamespace abstraction"
+git push origin main
 ```
 
 ### Verify the Generated Resources
 
 ```bash
+# Watch ArgoCD sync the developer-resources application
+argocd app get kro-developer-resources --insecure
+
 # Check that KRO created the Azure ResourceGroup
 kubectl get resourcegroup -n default
 
@@ -319,25 +425,23 @@ az group list --output table | grep myapp
 
 # Check the AppNamespace status
 kubectl describe appnamespace my-first-app
-
-# Commit developer resource
-git add developer-resources/
-git commit -m "Add first app using KRO abstraction"
-git push origin main
 ```
 
-### ✅ Verification Steps - Part 3
+### ✅ Verification Steps - Part 4
 
-Verify your first KRO abstraction works:
+Verify your first KRO abstraction works end-to-end through ArgoCD:
 
 ```bash
-# Check the KRO ResourceGroup definition exists
-kubectl get resourcegroup appnamespace -n default
+# Check ArgoCD applications are healthy and synced
+argocd app list --insecure | grep kro
+
+# Check the KRO ResourceGraphDefinition definition exists (deployed by ArgoCD)
+kubectl get resourcegraphdefinition appnamespace -n default
 
 # Verify the custom CRD was created
 kubectl get crd | grep appnamespace
 
-# Check the developer's AppNamespace instance
+# Check the developer's AppNamespace instance (deployed by ArgoCD)
 kubectl get appnamespace my-first-app -n default
 
 # Verify the Azure Resource Group was created
@@ -349,12 +453,13 @@ kubectl logs -n kro deployment/kro --tail=50
 ```
 
 **Expected Output:**
-- KRO ResourceGroup `appnamespace` should exist
-- A new CRD for `AppNamespace` should be created
+- Two ArgoCD applications: `kro-kro-definitions` and `kro-developer-resources`, both Synced and Healthy
+- KRO ResourceGraphDefinition `appnamespace` should exist with STATE `Active` and READY `True`
+- A new CRD for `AppNamespace` should be created (`appnamespaces.kro.run`)
 - The developer's `my-first-app` AppNamespace should exist
 - An Azure Resource Group named `myapp-dev-rg` should be visible in both Kubernetes and Azure
 
-### 🤔 Reflection Questions - Part 3
+### 🤔 Reflection Questions - Part 4
 
 Think about what you've created:
 
@@ -370,7 +475,7 @@ Think about what you've created:
 
 6. **CRD Creation**: KRO automatically created a CRD for `AppNamespace`. Where did this CRD come from? Can you view it with `kubectl get crd`?
 
-## Part 4: Creating an AppDatabase Abstraction
+## Part 5: Creating an AppDatabase Abstraction
 
 Now let's create a more complex abstraction that provisions a complete application database with all necessary Azure resources.
 
@@ -388,42 +493,28 @@ For this lab, we'll use Azure Database for PostgreSQL Flexible Server via ASO.
 ### Create the AppDatabase ResourceGroup
 
 ```bash
-# Create the AppDatabase ResourceGroup definition
+# Create the AppDatabase ResourceGraphDefinition definition
 cat << 'EOF' > kro-definitions/app-database-rg.yaml
 apiVersion: kro.run/v1alpha1
-kind: ResourceGroup
+kind: ResourceGraphDefinition
 metadata:
   name: appdatabase
   namespace: default
 spec:
   # Define what developers specify
+  # Note: resource IDs must be lower camelCase (no hyphens)
   schema:
     apiVersion: v1alpha1
     kind: AppDatabase
     spec:
-      appName:
-        type: string
-        description: "Name of the application"
-      environment:
-        type: string
-        description: "Environment (dev, staging, prod)"
-        default: "dev"
-      databaseType:
-        type: string
-        description: "Database type: postgresql or mysql"
-        default: "postgresql"
-        enum:
-        - postgresql
-        - mysql
-      location:
-        type: string
-        description: "Azure region"
-        default: "swedencentral"
+      appName: string
+      environment: string | default=dev
+      location: string | default=swedencentral
 
   # Define what gets created
   resources:
   # 1. Resource Group for the database
-  - id: database-rg
+  - id: databaseRg
     template:
       apiVersion: resources.azure.com/v1api20200601
       kind: ResourceGroup
@@ -439,7 +530,7 @@ spec:
           managed-by: kro
 
   # 2. PostgreSQL Flexible Server
-  - id: postgresql-server
+  - id: postgresqlServer
     template:
       apiVersion: dbforpostgresql.azure.com/v1api20230601preview
       kind: FlexibleServer
@@ -449,7 +540,7 @@ spec:
       spec:
         location: ${schema.spec.location}
         owner:
-          name: ${resources.database-rg.metadata.name}
+          name: ${databaseRg.metadata.name}
         sku:
           name: Standard_B1ms
           tier: Burstable
@@ -469,7 +560,7 @@ spec:
           managed-by: kro
 
   # 3. PostgreSQL Database
-  - id: postgresql-database
+  - id: postgresqlDatabase
     template:
       apiVersion: dbforpostgresql.azure.com/v1api20230601preview
       kind: FlexibleServersDatabase
@@ -478,12 +569,12 @@ spec:
         namespace: default
       spec:
         owner:
-          name: ${resources.postgresql-server.metadata.name}
+          name: ${postgresqlServer.metadata.name}
         charset: UTF8
         collation: en_US.utf8
 
   # 4. Firewall rule to allow Azure services
-  - id: firewall-rule
+  - id: firewallRule
     template:
       apiVersion: dbforpostgresql.azure.com/v1api20230601preview
       kind: FlexibleServersFirewallRule
@@ -492,7 +583,7 @@ spec:
         namespace: default
       spec:
         owner:
-          name: ${resources.postgresql-server.metadata.name}
+          name: ${postgresqlServer.metadata.name}
         startIpAddress: 0.0.0.0
         endIpAddress: 0.0.0.0  # Special Azure services rule
 EOF
@@ -503,14 +594,19 @@ git commit -m "Add AppDatabase abstraction for PostgreSQL"
 git push origin main
 ```
 
-### Apply the AppDatabase ResourceGroup
+### Apply the AppDatabase ResourceGraphDefinition via GitOps
 
 ```bash
-# Apply the AppDatabase ResourceGroup
-kubectl apply -f kro-definitions/app-database-rg.yaml
+# Commit — ArgoCD will deploy it automatically
+git add kro-definitions/app-database-rg.yaml
+git commit -m "Add AppDatabase abstraction for PostgreSQL"
+git push origin main
 
-# Verify it was created
-kubectl get resourcegroup appdatabase -n default
+# Wait ~30s, then verify ArgoCD synced it
+argocd app get kro-kro-definitions --insecure
+
+# Verify the ResourceGraphDefinition is active
+kubectl get resourcegraphdefinition appdatabase -n default
 
 # Check that the AppDatabase CRD was created
 kubectl get crd | grep appdatabase
@@ -545,14 +641,18 @@ metadata:
 spec:
   appName: myapp
   environment: dev
-  databaseType: postgresql
   location: swedencentral
 EOF
 
-# Apply it
-kubectl apply -f developer-resources/myapp-database.yaml
+# Commit the request — ArgoCD will sync it
+git add developer-resources/myapp-database.yaml
+git commit -m "Request PostgreSQL database using AppDatabase abstraction"
+git push origin main
 
-# Watch the resources being created
+# Watch ArgoCD deploy the instance
+argocd app get kro-developer-resources --insecure
+
+# Watch the Azure resources being created
 kubectl get resourcegroup,flexibleserver,flexibleserversdatabase --watch
 ```
 
@@ -568,7 +668,7 @@ kubectl get flexibleserver | grep myapp
 
 # This will take 5-10 minutes to provision in Azure
 # Check the PostgreSQL server status
-kubectl get flexibleserver ${schema.spec.appName}-${schema.spec.environment}-psql -o yaml | grep -A 10 "status:"
+kubectl get flexibleserver myapp-dev-psql -o yaml | grep -A 10 "status:"
 
 # Verify in Azure
 az group show --name myapp-dev-db-rg --output table
@@ -580,10 +680,10 @@ az postgres flexible-server list --resource-group myapp-dev-db-rg --output table
 This step will take several minutes as Azure provisions the PostgreSQL server:
 
 ```bash
-# Verify the AppDatabase ResourceGroup definition
-kubectl get resourcegroup appdatabase -n default
+# Verify the AppDatabase ResourceGraphDefinition definition
+kubectl get resourcegraphdefinition appdatabase -n default
 
-# Check the developer's AppDatabase instance
+# Check the developer's AppDatabase instance (deployed by ArgoCD)
 kubectl get appdatabase myapp-database -n default
 kubectl describe appdatabase myapp-database
 
@@ -596,20 +696,15 @@ kubectl get flexibleserversfirewallrule | grep myapp
 # Verify in Azure (wait 5-10 minutes for provisioning)
 az group show --name myapp-dev-db-rg --output table
 az postgres flexible-server show --resource-group myapp-dev-db-rg --name myapp-dev-psql --output table
-
-# Commit the developer resource
-git add developer-resources/myapp-database.yaml
-git commit -m "Request PostgreSQL database using AppDatabase abstraction"
-git push origin main
 ```
 
 **Expected Output:**
-- AppDatabase ResourceGroup `appdatabase` exists
-- Developer's `myapp-database` AppDatabase instance exists
+- AppDatabase ResourceGraphDefinition `appdatabase` is Active and Ready (deployed by ArgoCD `kro-kro-definitions`)
+- Developer's `myapp-database` AppDatabase instance exists (deployed by ArgoCD `kro-developer-resources`)
 - Multiple Azure resources created: Resource Group, PostgreSQL Server, Database, Firewall Rule
 - Resources visible in both Kubernetes and Azure (after provisioning completes)
 
-### 🤔 Reflection Questions - Part 4
+### 🤔 Reflection Questions - Part 5
 
 Reflect on the AppDatabase abstraction:
 
@@ -625,7 +720,7 @@ Reflect on the AppDatabase abstraction:
 
 6. **Provisioning Time**: Azure database provisioning takes 5-10 minutes. How does this affect the developer experience? How could you communicate progress?
 
-## Part 5: Creating an AppStorage Abstraction
+## Part 6: Creating an AppStorage Abstraction
 
 Let's create another abstraction for object storage, which applications commonly need for storing files, images, or backups.
 
@@ -635,44 +730,27 @@ Let's create another abstraction for object storage, which applications commonly
 # Create the AppStorage ResourceGroup definition
 cat << 'EOF' > kro-definitions/app-storage-rg.yaml
 apiVersion: kro.run/v1alpha1
-kind: ResourceGroup
+kind: ResourceGraphDefinition
 metadata:
   name: appstorage
   namespace: default
 spec:
   # Define what developers specify
+  # Note: resource IDs must be lower camelCase (no hyphens)
   schema:
     apiVersion: v1alpha1
     kind: AppStorage
     spec:
-      appName:
-        type: string
-        description: "Name of the application"
-      environment:
-        type: string
-        description: "Environment (dev, staging, prod)"
-        default: "dev"
-      location:
-        type: string
-        description: "Azure region"
-        default: "swedencentral"
-      publicAccess:
-        type: boolean
-        description: "Whether to allow public blob access"
-        default: false
-      redundancy:
-        type: string
-        description: "Storage redundancy level"
-        default: "LRS"
-        enum:
-        - LRS   # Locally Redundant Storage
-        - GRS   # Geo-Redundant Storage
-        - ZRS   # Zone-Redundant Storage
+      appName: string
+      environment: string | default=dev
+      location: string | default=swedencentral
+      publicAccess: boolean | default=false
+      redundancy: string | default=LRS
 
   # Define what gets created
   resources:
   # 1. Resource Group for storage
-  - id: storage-rg
+  - id: storageRg
     template:
       apiVersion: resources.azure.com/v1api20200601
       kind: ResourceGroup
@@ -688,7 +766,7 @@ spec:
           managed-by: kro
 
   # 2. Storage Account
-  - id: storage-account
+  - id: storageAccount
     template:
       apiVersion: storage.azure.com/v1api20230101
       kind: StorageAccount
@@ -703,7 +781,7 @@ spec:
         sku:
           name: Standard_${schema.spec.redundancy}
         owner:
-          name: ${resources.storage-rg.metadata.name}
+          name: ${storageRg.metadata.name}
         properties:
           accessTier: Hot
           allowBlobPublicAccess: ${schema.spec.publicAccess}
@@ -715,7 +793,7 @@ spec:
           managed-by: kro
 
   # 3. Blob Container for application data
-  - id: blob-container
+  - id: blobContainer
     template:
       apiVersion: storage.azure.com/v1api20230101
       kind: StorageAccountsBlobService
@@ -724,14 +802,14 @@ spec:
         namespace: default
       spec:
         owner:
-          name: ${resources.storage-account.metadata.name}
+          name: ${storageAccount.metadata.name}
         properties:
           deleteRetentionPolicy:
             enabled: true
             days: 7
 
   # 4. Default container
-  - id: default-container
+  - id: defaultContainer
     template:
       apiVersion: storage.azure.com/v1api20230101
       kind: StorageAccountsBlobServicesContainer
@@ -740,25 +818,25 @@ spec:
         namespace: default
       spec:
         owner:
-          name: ${resources.blob-container.metadata.name}
+          name: ${blobContainer.metadata.name}
         properties:
           publicAccess: None
 EOF
 
-# Commit the ResourceGroup
+# Commit the ResourceGraphDefinition
 git add kro-definitions/app-storage-rg.yaml
 git commit -m "Add AppStorage abstraction for blob storage"
 git push origin main
 ```
 
-### Apply the AppStorage ResourceGroup
+### Apply the AppStorage ResourceGraphDefinition
 
 ```bash
-# Apply the AppStorage ResourceGroup
+# Apply the AppStorage ResourceGraphDefinition
 kubectl apply -f kro-definitions/app-storage-rg.yaml
 
 # Verify it was created
-kubectl get resourcegroup appstorage -n default
+kubectl get resourcegraphdefinition appstorage -n default
 
 # Check that the AppStorage CRD was created
 kubectl get crd | grep appstorage
@@ -799,8 +877,8 @@ git push origin main
 Verify the AppStorage abstraction works:
 
 ```bash
-# Verify the AppStorage ResourceGroup definition
-kubectl get resourcegroup appstorage -n default
+# Verify the AppStorage ResourceGraphDefinition definition
+kubectl get resourcegraphdefinition appstorage -n default
 
 # Check the developer's AppStorage instance
 kubectl get appstorage myapp-storage -n default
@@ -843,173 +921,29 @@ Think about the AppStorage abstraction:
 
 6. **Multi-Container Support**: Currently we create one default container. How would you extend this to allow developers to specify multiple containers?
 
-## Part 6: Integrating KRO Abstractions with ArgoCD
+## Part 7: ArgoCD Integration *(already done in Part 3)*
 
-Now let's connect our KRO abstractions to ArgoCD for full GitOps workflow.
+> ArgoCD was set up in **Part 3** before any KRO resources were created. The `platform-abstractions` project and ApplicationSet are already running, and all resources in `kro-definitions/` and `developer-resources/` are managed by ArgoCD.
 
-### Create ArgoCD Project for KRO Resources
-
-```bash
-# Create an ArgoCD project for platform abstractions
-cat << 'EOF' > /tmp/platform-abstractions-project.yaml
-apiVersion: argoproj.io/v1alpha1
-kind: AppProject
-metadata:
-  name: platform-abstractions
-  namespace: argocd
-spec:
-  description: "Project for KRO abstractions and developer resources"
-
-  sourceRepos:
-  - 'https://github.com/*/platform-self-service.git'
-
-  destinations:
-  - namespace: default
-    server: https://kubernetes.default.svc
-  - namespace: 'kro'
-    server: https://kubernetes.default.svc
-
-  # Allow KRO ResourceGroups and generated resources
-  clusterResourceWhitelist:
-  - group: 'kro.run'
-    kind: '*'
-  - group: 'apiextensions.k8s.io'
-    kind: 'CustomResourceDefinition'
-
-  namespaceResourceWhitelist:
-  - group: 'kro.run'
-    kind: '*'
-  - group: 'resources.azure.com'
-    kind: '*'
-  - group: 'storage.azure.com'
-    kind: '*'
-  - group: 'dbforpostgresql.azure.com'
-    kind: '*'
-  - group: ''
-    kind: 'Secret'
-EOF
-
-# Apply the project
-kubectl apply -f /tmp/platform-abstractions-project.yaml
-
-# Verify project was created
-argocd proj get platform-abstractions
-```
-
-### Create ArgoCD ApplicationSet
-
-Now create an ArgoCD ApplicationSet that monitors your GitHub repository and automatically deploys KRO abstractions and developer resources. This follows the same pattern as LAB03's Azure resources management.
-
-```bash
-# Create the platform abstractions ApplicationSet
-# Replace $GITHUB_USERNAME with your GitHub username
-cat << EOF > /tmp/platform-abstractions-applicationset.yaml
-apiVersion: argoproj.io/v1alpha1
-kind: ApplicationSet
-metadata:
-  name: platform-abstractions
-  namespace: argocd
-spec:
-  generators:
-    - git:
-        repoURL: https://github.com/$GITHUB_USERNAME/platform-self-service.git
-        revision: HEAD
-        directories:
-          - path: kro-definitions
-          - path: developer-resources
-  template:
-    metadata:
-      name: 'kro-{{path.basename}}'
-    spec:
-      project: platform-abstractions
-      source:
-        repoURL: https://github.com/$GITHUB_USERNAME/platform-self-service.git
-        targetRevision: HEAD
-        path: '{{path}}'
-      destination:
-        server: https://kubernetes.default.svc
-        namespace: default
-      syncPolicy:
-        automated:
-          prune: true
-          selfHeal: true
-        syncOptions:
-          - CreateNamespace=false
-EOF
-
-# Apply the ApplicationSet
-kubectl apply -f /tmp/platform-abstractions-applicationset.yaml
-
-# Check the ApplicationSet was created
-kubectl get applicationset -n argocd | grep platform-abstractions
-
-# The ApplicationSet will automatically generate Applications for kro-definitions and developer-resources
-# Check which applications were generated
-argocd app list | grep kro
-
-# Watch the generated applications sync
-# You'll see applications like: kro-kro-definitions, kro-developer-resources
-argocd app get kro-kro-definitions
-argocd app get kro-developer-resources
-```
-
-**Why use an ApplicationSet instead of individual Applications?**
-
-The ApplicationSet approach provides several benefits:
-1. **Automatic Discovery**: When you add new directories (e.g., `kro-advanced/`), ArgoCD automatically generates applications for them
-2. **Better Organization**: Each directory is managed as a separate application, making it easier to track sync status
-3. **Scalability**: As your platform grows, you don't need to manually create new ArgoCD applications
-4. **Consistency**: All generated applications follow the same pattern defined in the ApplicationSet template
-5. **Similar to LAB03**: This follows the same pattern used for Azure resources in LAB03, providing a consistent experience
-
-### Verify GitOps Workflow
-
-```bash
-# Check that ArgoCD is managing the resources
-argocd app list | grep kro
-
-# View sync status of generated applications
-argocd app get kro-kro-definitions
-argocd app get kro-developer-resources
-
-# Check in ArgoCD UI
-# Navigate to http://argocd.127.0.0.1.nip.io
-# You should see both applications with their resources
-```
-
-### ✅ Verification Steps - Part 6
-
-Verify the complete GitOps integration:
+To verify the current state:
 
 ```bash
 # Verify ArgoCD project
-argocd proj get platform-abstractions
+argocd proj get platform-abstractions --insecure
 
 # Verify the ApplicationSet exists
 kubectl get applicationset platform-abstractions -n argocd
 
-# Verify generated applications exist and are healthy
-argocd app list | grep kro
-argocd app get kro-kro-definitions
-argocd app get kro-developer-resources
+# Check generated applications are healthy and synced
+argocd app list --insecure | grep kro
 
-# Check that resources are synced
-kubectl get resourcegroup -n default
-kubectl get appdatabase,appstorage,appnamespace -n default
-
-# Verify in ArgoCD UI (if accessible)
-# http://argocd.127.0.0.1.nip.io
-# Check both applications show green/healthy status
+# Open ArgoCD UI
+echo "Open: http://argocd.127.0.0.1.nip.io"
+# Log in (admin / <password from LAB01>)
+# You should see kro-kro-definitions and kro-developer-resources
 ```
 
-**Expected Output:**
-- ArgoCD project `platform-abstractions` exists
-- ApplicationSet `platform-abstractions` exists
-- Two generated applications: `kro-kro-definitions` and `kro-developer-resources`
-- Both applications show "Healthy" and "Synced" status
-- All KRO ResourceGroups and developer resources visible in ArgoCD
-
-### 🤔 Reflection Questions - Part 6
+### 🤔 Reflection Questions - Part 7
 
 Consider the complete platform:
 
@@ -1027,7 +961,7 @@ Consider the complete platform:
 
 7. **ApplicationSet Pattern**: How does using ApplicationSet (like in LAB03) make the platform more maintainable compared to individual Applications?
 
-## Part 7: Testing the Complete Platform
+## Part 8: Testing the Complete Platform
 
 Let's test the complete self-service workflow.
 
@@ -1051,7 +985,6 @@ metadata:
 spec:
   appName: newteam
   environment: dev
-  databaseType: postgresql
   location: swedencentral
 ---
 apiVersion: kro.run/v1alpha1
@@ -1091,7 +1024,7 @@ git push origin main
 ```bash
 # ArgoCD will detect the change and sync automatically
 # Watch the sync happen (using the generated application name)
-argocd app get kro-developer-resources --watch
+argocd app get kro-developer-resources --insecure --watch
 
 # Check resources being created
 kubectl get appdatabase,appstorage --watch
@@ -1116,7 +1049,7 @@ az postgres flexible-server list --output table | grep newteam
 az storage account list --output table | grep newteam
 
 # Check ArgoCD application status
-argocd app get kro-developer-resources
+argocd app get kro-developer-resources --insecure
 ```
 
 ### ✅ Verification Steps - Part 7
@@ -1129,7 +1062,7 @@ cd ~/platform-self-service
 git log --oneline -5
 
 # Check ArgoCD synced the changes (using generated application name)
-argocd app get kro-developer-resources | grep -A 5 "Sync Status"
+argocd app get kro-developer-resources --insecure | grep -A 5 "Sync Status"
 
 # Verify both AppDatabase and AppStorage were created
 kubectl get appdatabase newteam-database -o yaml
@@ -1169,7 +1102,7 @@ Reflect on the complete platform:
 
 6. **Approval Workflow**: In production, you might want approval before provisioning expensive resources. How could you add an approval gate to this GitOps workflow?
 
-## Part 8: Advanced Patterns and Best Practices
+## Part 9: Advanced Patterns and Best Practices
 
 ### Adding Validation to Abstractions
 
@@ -1203,7 +1136,7 @@ You can create higher-level abstractions that combine multiple abstractions:
 # Example concept: FullStack app that includes database, storage, and namespace
 cat << 'EOF' > kro-definitions/full-stack-app-rg.yaml
 apiVersion: kro.run/v1alpha1
-kind: ResourceGroup
+kind: ResourceGraphDefinition
 metadata:
   name: fullstackapp
   namespace: default
@@ -1212,14 +1145,9 @@ spec:
     apiVersion: v1alpha1
     kind: FullStackApp
     spec:
-      appName:
-        type: string
-      environment:
-        type: string
-        default: "dev"
-      location:
-        type: string
-        default: "swedencentral"
+      appName: string
+      environment: string | default=dev
+      location: string | default=swedencentral
 
   resources:
   # 1. Create an AppNamespace
@@ -1360,7 +1288,7 @@ kubectl describe flexibleserver <db-name>
 argocd app get kro-developer-resources --refresh
 
 # Check sync status and errors
-argocd app get kro-developer-resources
+argocd app get kro-developer-resources --insecure
 
 # Force a sync
 argocd app sync kro-developer-resources --prune
@@ -1401,8 +1329,8 @@ kubectl delete appnamespace my-first-app
 # Wait for Azure resources to be cleaned up
 kubectl get resourcegroup --watch
 
-# Delete KRO ResourceGroups
-kubectl delete resourcegroup appnamespace appdatabase appstorage -n default
+# Delete KRO ResourceGraphDefinitions
+kubectl delete resourcegraphdefinition appnamespace appdatabase appstorage -n default
 
 # Delete ArgoCD ApplicationSet (this will remove all generated applications)
 kubectl delete applicationset platform-abstractions -n argocd
@@ -1427,8 +1355,8 @@ Before finishing, verify your complete platform:
 # Check KRO is running
 kubectl get pods -n kro
 
-# Verify all ResourceGroups
-kubectl get resourcegroup -n default
+# Verify all ResourceGraphDefinitions
+kubectl get resourcegraphdefinition -n default
 
 # Check custom CRDs created by KRO
 kubectl get crd | grep -E "(appnamespace|appdatabase|appstorage)"
@@ -1444,7 +1372,7 @@ az group list --output table | grep -E "(myapp|newteam)"
 
 # Check ArgoCD ApplicationSet and generated applications
 kubectl get applicationset platform-abstractions -n argocd
-argocd app list | grep kro
+argocd app list --insecure | grep kro
 
 # Verify GitOps is working
 cd ~/platform-self-service
