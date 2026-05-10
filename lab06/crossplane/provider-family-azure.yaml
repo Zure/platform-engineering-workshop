@@ -1,0 +1,30 @@
+# Azure Provider for Crossplane
+# This installs the Upbound provider-family-azure which gives Crossplane
+# the ability to manage Azure resources via CRDs.
+#
+# Apply with: kubectl apply -f provider-family-azure.yaml
+# Check status: kubectl get providers
+
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: upbound-provider-family-azure
+spec:
+  # Pin to v1.13.1 — required for compatibility with provider-azure-storage:v1
+  # (provider-azure-storage requires provider-family-azure@v1.13.1)
+  package: xpkg.upbound.io/upbound/provider-family-azure:v1.13.1
+  packagePullPolicy: IfNotPresent
+  revisionActivationPolicy: Automatic
+
+---
+# Individual provider for Azure Storage resources
+# This is a sub-provider of the family that installs only the Storage CRDs,
+# keeping the footprint small for the workshop.
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: upbound-provider-azure-storage
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-storage:v1
+  packagePullPolicy: IfNotPresent
+  revisionActivationPolicy: Automatic

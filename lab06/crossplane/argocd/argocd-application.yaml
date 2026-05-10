@@ -1,0 +1,40 @@
+# ArgoCD Application - Self-Service Claims via GitOps
+# This ArgoCD Application watches a Git directory for AppStorageClaim
+# manifests. When a developer commits a new Claim file, ArgoCD syncs it
+# to the cluster and Crossplane takes over to provision the Azure resources.
+#
+# This is the same GitOps pattern used in LAB02, extended to cloud infrastructure.
+#
+# Instructions:
+#   1. Replace YOUR_GITHUB_ORG/YOUR_REPO with your repository details
+#   2. Ensure the path exists in your repository (e.g., crossplane-claims/)
+#   3. Apply with: kubectl apply -f argocd-application.yaml -n argocd
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crossplane-claims
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/YOUR_GITHUB_ORG/YOUR_REPO.git
+    targetRevision: HEAD
+    # Directory in your repo where Claim YAMLs live
+    path: crossplane-claims
+
+  destination:
+    server: https://kubernetes.default.svc
+    # Claims are namespace-scoped; ArgoCD creates the namespace if needed
+    namespace: team-alpha
+
+  syncPolicy:
+    automated:
+      prune: true      # Remove claims that are deleted from Git
+      selfHeal: true   # Re-sync if someone edits the cluster manually
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

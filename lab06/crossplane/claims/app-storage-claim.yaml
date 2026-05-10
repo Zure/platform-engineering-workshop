@@ -1,0 +1,34 @@
+# AppStorageClaim - Example Claim for application teams
+# A Claim is the developer-facing API. It is namespace-scoped and exposes
+# only the parameters that application teams need to know about.
+# The platform team's Composition handles all the complexity behind the scenes.
+#
+# Instructions:
+#   1. Replace "yourname" placeholders with your own identifiers
+#   2. Storage account names must be globally unique, lowercase, 3-24 chars
+#   3. Apply with: kubectl apply -f app-storage-claim.yaml
+#   4. Watch:      kubectl get appstorageclaims -n team-alpha
+#   5. List MRs:   kubectl get resourcegroups,accounts
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-alpha
+
+---
+apiVersion: platform.workshop.io/v1alpha1
+kind: AppStorageClaim
+metadata:
+  name: myapp-storage
+  namespace: team-alpha
+spec:
+  parameters:
+    # Must be unique in your Azure subscription
+    resourceGroupName: rg-yourname-crossplane-claim
+    # Must be globally unique, lowercase, 3-24 chars
+    storageAccountName: styournamecpclaim
+    location: swedencentral
+    environment: workshop
+  # Bind this claim to the composition
+  compositionRef:
+    name: appstorage-composition

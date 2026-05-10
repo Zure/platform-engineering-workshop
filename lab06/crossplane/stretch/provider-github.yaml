@@ -1,0 +1,63 @@
+# Crossplane GitHub Provider - Stretch Goal
+# This installs the community GitHub provider for Crossplane, enabling
+# provisioning of GitHub repositories as Managed Resources.
+# Combined with the Azure provider, a single Claim can trigger both
+# Azure *and* GitHub resources — the multi-provider superpower.
+#
+# Apply with: kubectl apply -f provider-github.yaml
+# Check status: kubectl get providers
+
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: crossplane-contrib-provider-github
+spec:
+  package: xpkg.upbound.io/crossplane-contrib/provider-github:v0.1.0
+  packagePullPolicy: IfNotPresent
+  revisionActivationPolicy: Automatic
+
+---
+# GitHub ProviderConfig
+# Store your GitHub Personal Access Token in a Secret first:
+#
+#   kubectl create secret generic github-pat \
+#     --from-literal=credentials='{"token":"ghp_YOUR_PAT_HERE"}' \
+#     --namespace crossplane-system
+#
+# Reuse the PAT created in LAB05 (same scopes: repo, delete_repo).
+
+apiVersion: github.upbound.io/v1beta1
+kind: ProviderConfig
+metadata:
+  name: default-github
+spec:
+  credentials:
+    source: Secret
+    secretRef:
+      namespace: crossplane-system
+      name: github-pat
+      key: credentials
+
+---
+# Example: GitHub Repository Managed Resource
+# Once the provider is healthy, provision a repo with a single manifest.
+#
+# Apply with: kubectl apply -f provider-github.yaml
+# Watch:      kubectl get repositories -w
+
+apiVersion: repo.github.upbound.io/v1alpha1
+kind: Repository
+metadata:
+  name: workshop-crossplane-demo
+  annotations:
+    crossplane.io/external-name: workshop-crossplane-demo  # GitHub repo name
+spec:
+  forProvider:
+    description: "Created by Crossplane during Platform Engineering Workshop LAB06"
+    visibility: private
+    autoInit: true
+    hasIssues: true
+    hasWiki: false
+    deleteBranchOnMerge: true
+  providerConfigRef:
+    name: default-github

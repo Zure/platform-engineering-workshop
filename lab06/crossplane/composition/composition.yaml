@@ -1,0 +1,108 @@
+# Composition for AppStorage
+# The Composition tells Crossplane how to satisfy an AppStorage claim:
+# it maps one XAppStorage → one ResourceGroup + one StorageAccount.
+# This is the "Crossplane superpower" — platform engineering abstractions.
+#
+# Crossplane v2 uses Pipeline mode with function-patch-and-transform.
+# Install the function first:
+#   kubectl apply -f - <<EOF
+#   apiVersion: pkg.crossplane.io/v1beta1
+#   kind: Function
+#   metadata:
+#     name: function-patch-and-transform
+#   spec:
+#     package: xpkg.upbound.io/crossplane-contrib/function-patch-and-transform:v0.8.1
+#   EOF
+#
+# Apply with: kubectl apply -f composition.yaml
+# Check:      kubectl get compositions
+
+apiVersion: apiextensions.crossplane.io/v1
+kind: Composition
+metadata:
+  name: appstorage-composition
+  labels:
+    provider: azure
+    type: storage
+spec:
+  # Which XRD this Composition satisfies
+  compositeTypeRef:
+    apiVersion: platform.workshop.io/v1alpha1
+    kind: XAppStorage
+
+  # Crossplane v2: Pipeline mode replaces inline spec.resources
+  mode: Pipeline
+  pipeline:
+    - step: patch-and-transform
+      functionRef:
+        name: function-patch-and-transform
+      input:
+        apiVersion: pt.fn.crossplane.io/v1beta1
+        kind: Resources
+        resources:
+
+          # --- Resource 1: Azure Resource Group ---
+          - name: resource-group
+            base:
+              apiVersion: azure.upbound.io/v1beta1
+              kind: ResourceGroup
+              spec:
+                forProvider:
+                  location: swedencentral  # Patched below
+                  tags:
+                    managed-by: crossplane
+                providerConfigRef:
+                  name: default
+            patches:
+              # Patch the external (Azure) name from the claim parameter
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.parameters.resourceGroupName
+                toFieldPath: metadata.annotations["crossplane.io/external-name"]
+              # Patch location from the claim parameter
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.parameters.location
+                toFieldPath: spec.forProvider.location
+              # Patch environment tag
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.parameters.environment
+                toFieldPath: spec.forProvider.tags.environment
+              # Write the Azure Resource ID back to the XR status
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.id
+                toFieldPath: status.resourceGroupId
+
+          # --- Resource 2: Azure Storage Account ---
+          - name: storage-account
+            base:
+              apiVersion: storage.azure.upbound.io/v1beta2
+              kind: Account
+              spec:
+                forProvider:
+                  location: swedencentral  # Patched below
+                  resourceGroupNameSelector:
+                    matchControllerRef: true  # Auto-select the RG created above
+                  accountTier: Standard
+                  accountReplicationType: LRS
+                  enableHttpsTrafficOnly: true
+                  minTlsVersion: TLS1_2
+                  tags:
+                    managed-by: crossplane
+                providerConfigRef:
+                  name: default
+            patches:
+              # Patch the globally unique storage account name
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.parameters.storageAccountName
+                toFieldPath: metadata.annotations["crossplane.io/external-name"]
+              # Patch location
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.parameters.location
+                toFieldPath: spec.forProvider.location
+              # Patch environment tag
+              - type: FromCompositeFieldPath
+                fromFieldPath: spec.parameters.environment
+                toFieldPath: spec.forProvider.tags.environment
+              # Write the Azure Resource ID back to the XR status
+              - type: ToCompositeFieldPath
+                fromFieldPath: status.atProvider.id
+                toFieldPath: status.storageAccountId
