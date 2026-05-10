@@ -175,7 +175,7 @@ az ad sp create-for-rbac \
   --name $SP_NAME \
   --role Contributor \
   --scopes /subscriptions/$SUBSCRIPTION_ID \
-  --sdk-auth
+  --json-auth
 
 # The output will look like this - SAVE THESE VALUES:
 # {
@@ -294,13 +294,14 @@ kubectl logs -n azureserviceoperator-system deployment/azureserviceoperator-cont
 You should see output similar to:
 ```
 NAME                                                    READY   STATUS    RESTARTS   AGE
-azureserviceoperator-controller-manager-xxxxxxxxx-xxx   2/2     Running   0          2m
+azureserviceoperator-controller-manager-xxxxxxxxx-xxx   1/1     Running   0          2m
+azureserviceoperator-controller-manager-yyyyyyyyy-yyy   1/1     Running   0          2m
 ```
 
 The secret should exist:
 ```
 NAME                       TYPE     DATA   AGE
-aso-controller-settings    Opaque   4      2m
+aso-controller-settings    Opaque   5      2m
 ```
 
 ### ✅ Verification Steps - Part 2
@@ -327,8 +328,8 @@ kubectl logs -n azureserviceoperator-system deployment/azureserviceoperator-cont
 ```
 
 **Expected Output:**
-- ASO pod should show 2/2 containers READY and status Running
-- The `aso-controller-settings` secret should exist with 4 data entries (AZURE_SUBSCRIPTION_ID, AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET)
+- ASO should show 2 pods, each with 1/1 containers READY and status Running
+- The `aso-controller-settings` secret should exist with 5 data entries
 - Many Azure-related CRDs should be installed (10+)
 - Logs should show successful startup and Azure authentication
 
@@ -354,7 +355,9 @@ We'll use the same `platform-self-service` repository from LAB02 to manage Azure
 
 ```bash
 # Navigate to your platform-self-service repository from LAB02
-cd ~/platform-self-service
+# If you cloned it from your home directory use: cd ~/platform-self-service
+# Otherwise navigate to wherever you cloned it during LAB02
+cd platform-self-service
 
 # Create directory structure for Azure resources
 mkdir -p azure-resources/resource-groups azure-resources/storage-accounts
@@ -546,7 +549,7 @@ argocd repo list
 
 ```bash
 # Create an ArgoCD project for Azure resources
-cat << 'EOF' > /tmp/azure-project.yaml
+cat << EOF > /tmp/azure-project.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -555,9 +558,9 @@ metadata:
 spec:
   description: "Project for managing Azure resources via ASO"
 
-  # Source repositories - update with your GitHub username
+  # Source repositories - replace YOUR_GITHUB_USERNAME with your actual GitHub username
   sourceRepos:
-  - 'https://github.com/*/platform-self-service.git'
+  - "https://github.com/$GITHUB_USERNAME/platform-self-service.git"
 
   # Destination clusters and namespaces
   destinations:
@@ -667,9 +670,17 @@ kubectl apply -f /tmp/azure-resources-applicationset.yaml
 # Check the ApplicationSet was created
 kubectl get applicationset -n argocd | grep azure-resources
 
+# Wait for ArgoCD to discover the new directories (repo cache refreshes every 3 minutes)
+# If apps don't appear immediately, wait a moment and retry
+echo "Waiting for ArgoCD to detect repository changes..."
+sleep 30
+
 # The ApplicationSet will automatically generate Applications for each subdirectory under azure-resources/
 # Check which applications were generated
 argocd app list | grep azure
+
+# Note: If no applications appear yet, wait up to 3 minutes for ArgoCD to poll
+# the repository and re-run: argocd app list | grep azure
 
 # Watch the generated applications sync
 # For example, if you have azure-resources/resource-groups/ and azure-resources/storage-accounts/
